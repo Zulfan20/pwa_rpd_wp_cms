@@ -8,11 +8,18 @@ import {
   SlidersHorizontal,
   Cookie,
   Mic2,
-  ChevronUp
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import type { SiteSetting, Member, MusicItem } from "@/lib/supabase";
+
+type HomeBanner = {
+  image_url: string;
+  alt: string;
+};
 
 function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -104,10 +111,14 @@ export default function Home() {
   const [featuredMember, setFeaturedMember] = useState<Member | null>(null);
   const [clbkTracks, setClbkTracks] = useState<MusicItem[]>([]);
   const [activeTrackIndex, setActiveTrackIndex] = useState(0);
+  const [regularBanners, setRegularBanners] = useState<HomeBanner[]>([]);
+  const [specialBanners, setSpecialBanners] = useState<HomeBanner[]>([]);
+  const [regularBannerIndex, setRegularBannerIndex] = useState(0);
+  const [specialBannerIndex, setSpecialBannerIndex] = useState(0);
 
   useEffect(() => {
     const fetchCMSData = async () => {
-      const [settingsRes, memberRes, musicRes] = await Promise.all([
+      const [settingsRes, memberRes, musicRes, bannersRes] = await Promise.all([
         supabase.from("site_settings").select("*"),
         supabase.from("members").select("*").eq("is_featured", true).eq("is_active", true).limit(1).single(),
         supabase
@@ -116,6 +127,12 @@ export default function Home() {
           .eq("is_active", true)
           .order("sort_order", { ascending: true })
           .limit(10),
+        supabase
+          .from("program_banners")
+          .select("section, image_url, is_active, sort_order")
+          .eq("is_active", true)
+          .order("section", { ascending: true })
+          .order("sort_order", { ascending: true }),
       ]);
       
       if (settingsRes.data) {
@@ -127,6 +144,23 @@ export default function Home() {
       }
       if (memberRes.data) setFeaturedMember(memberRes.data);
       if (musicRes.data) setClbkTracks(musicRes.data);
+      if (bannersRes.data) {
+        const groupedRegular = bannersRes.data
+          .filter((banner) => banner.section === "regular")
+          .map((banner) => ({
+            image_url: banner.image_url,
+            alt: "Siaran Reguler",
+          }));
+        const groupedSpecial = bannersRes.data
+          .filter((banner) => banner.section === "special")
+          .map((banner) => ({
+            image_url: banner.image_url,
+            alt: "Siaran Spesial",
+          }));
+
+        setRegularBanners(groupedRegular);
+        setSpecialBanners(groupedSpecial);
+      }
     };
     fetchCMSData();
   }, []);
@@ -136,6 +170,18 @@ export default function Home() {
       setActiveTrackIndex(0);
     }
   }, [activeTrackIndex, clbkTracks.length]);
+
+  useEffect(() => {
+    if (regularBannerIndex > regularBanners.length - 1) {
+      setRegularBannerIndex(0);
+    }
+  }, [regularBannerIndex, regularBanners.length]);
+
+  useEffect(() => {
+    if (specialBannerIndex > specialBanners.length - 1) {
+      setSpecialBannerIndex(0);
+    }
+  }, [specialBannerIndex, specialBanners.length]);
 
   const fallbackTracks: MusicItem[] = Array.from({ length: 10 }, (_, i) => ({
     id: i + 1,
@@ -154,6 +200,26 @@ export default function Home() {
 
   const goToNextTrack = () => {
     setActiveTrackIndex((prev) => (prev + 1) % displayTracks.length);
+  };
+
+  const goToPreviousRegularBanner = () => {
+    if (regularBanners.length === 0) return;
+    setRegularBannerIndex((prev) => (prev - 1 + regularBanners.length) % regularBanners.length);
+  };
+
+  const goToNextRegularBanner = () => {
+    if (regularBanners.length === 0) return;
+    setRegularBannerIndex((prev) => (prev + 1) % regularBanners.length);
+  };
+
+  const goToPreviousSpecialBanner = () => {
+    if (specialBanners.length === 0) return;
+    setSpecialBannerIndex((prev) => (prev - 1 + specialBanners.length) % specialBanners.length);
+  };
+
+  const goToNextSpecialBanner = () => {
+    if (specialBanners.length === 0) return;
+    setSpecialBannerIndex((prev) => (prev + 1) % specialBanners.length);
   };
 
   return (
@@ -337,18 +403,92 @@ export default function Home() {
               initial={{ opacity: 0, y: 50, rotate: -3 }}
               whileInView={{ opacity: 1, y: 0, rotate: -3 }}
               viewport={{ once: true }}
-              className="absolute left-0 top-0 bg-white rounded-[50px] p-12 md:p-16 w-full md:w-[65%] h-[350px] md:h-[450px] shadow-2xl flex items-center z-10"
+              className="absolute left-0 top-0 bg-white rounded-[50px] pt-12 pr-6 pb-12 pl-6 md:pt-16 md:pr-16 md:pb-16 md:pl-10 w-full md:w-[65%] h-[350px] md:h-[450px] shadow-2xl flex items-center z-10 overflow-hidden hover:-translate-y-4 hover:z-50 transition-transform duration-300 cursor-pointer"
             >
-              <h3 className="text-[#B21E35] text-6xl md:text-8xl font-black leading-[0.85] tracking-tighter">SIARAN<br />REGULER</h3>
+              {regularBanners.length > 0 && (
+                <div className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <div className="relative aspect-square w-[34vw] max-w-[280px] overflow-hidden rounded-[32px]">
+                    <Image src={regularBanners[regularBannerIndex]?.image_url} alt={regularBanners[regularBannerIndex]?.alt || "Siaran Reguler"} fill className="object-cover" />
+                  </div>
+                </div>
+              )}
+                <div className="relative z-10 flex h-full w-full flex-col justify-between">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="max-w-[52%]">
+                    <h3 className="text-[#B21E35] text-2xl sm:text-3xl md:text-6xl font-black leading-tight">SIARAN REGULER</h3>
+                    <p className="mt-2 text-[11px] sm:text-xs md:text-base text-black/70">Program siaran rutin yang menemani pendengar setiap hari dengan berita, musik, dan obrolan ringan.</p>
+                  </div>
+                  {regularBanners.length > 0 && (
+                    <div className="flex flex-col items-end gap-2 text-xs font-black uppercase tracking-[0.35em] text-black/35">
+                      <div className="flex items-center gap-2">
+                        <span>{String(regularBannerIndex + 1).padStart(2, "0")}</span>
+                        <span className="h-px w-8 bg-black/15" />
+                        <span>{String(regularBanners.length).padStart(2, "0")}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={goToPreviousRegularBanner} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#B21E35]/15 bg-white text-[#B21E35] shadow transition-transform hover:scale-105 hover:bg-[#B21E35] hover:text-white" aria-label="Previous regular poster">
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button type="button" onClick={goToNextRegularBanner} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#B21E35]/15 bg-white text-[#B21E35] shadow transition-transform hover:scale-105 hover:bg-[#B21E35] hover:text-white" aria-label="Next regular poster">
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-1 items-end justify-between gap-4 pt-6">
+                  <div className="max-w-[60%]" />
+                  {regularBanners.length > 0 && (
+                    <div />
+                  )}
+                </div>
+              </div>
             </motion.div>
 
             <motion.div 
               initial={{ opacity: 0, y: 50, rotate: 3 }}
               whileInView={{ opacity: 1, y: 0, rotate: 3 }}
               viewport={{ once: true }}
-              className="absolute right-0 top-[250px] md:top-[150px] bg-[#B21E35] rounded-[50px] p-12 md:p-16 w-full md:w-[60%] h-[350px] md:h-[450px] shadow-2xl flex items-end justify-center z-20 border-[10px] border-[#0a0a0a]"
+              className="absolute right-0 top-[250px] md:top-[150px] bg-[#B21E35] rounded-[50px] pt-12 pr-6 pb-12 pl-6 md:pt-16 md:pr-16 md:pb-16 md:pl-10 w-full md:w-[60%] h-[350px] md:h-[450px] shadow-2xl flex items-end justify-center z-20 overflow-hidden hover:-translate-y-4 hover:z-50 transition-transform duration-300 cursor-pointer"
             >
-              <h3 className="text-white text-6xl md:text-8xl font-black leading-[0.85] tracking-tighter text-center">SIARAN<br />SPESIAL</h3>
+              {specialBanners.length > 0 && (
+                <div className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <div className="relative aspect-square w-[34vw] max-w-[280px] overflow-hidden rounded-[32px]">
+                    <Image src={specialBanners[specialBannerIndex]?.image_url} alt={specialBanners[specialBannerIndex]?.alt || "Siaran Spesial"} fill className="object-cover" />
+                  </div>
+                </div>
+              )}
+              <div className="relative z-10 flex h-full w-full flex-col justify-between text-white">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="max-w-[52%]">
+                    <h3 className="text-white text-2xl sm:text-3xl md:text-6xl font-black leading-tight">SIARAN SPESIAL</h3>
+                    <p className="mt-2 text-[11px] sm:text-xs md:text-base text-white/80">Segmen istimewa dengan topik-tema khusus, kolaborasi, dan tamu spesial yang menghadirkan perspektif berbeda.</p>
+                  </div>
+                  {specialBanners.length > 0 && (
+                    <div className="flex flex-col items-end gap-2 text-xs font-black uppercase tracking-[0.35em] text-white/60">
+                      <div className="flex items-center gap-2">
+                        <span>{String(specialBannerIndex + 1).padStart(2, "0")}</span>
+                        <span className="h-px w-8 bg-white/20" />
+                        <span>{String(specialBanners.length).padStart(2, "0")}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={goToPreviousSpecialBanner} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow transition-transform hover:scale-105 hover:bg-white hover:text-[#B21E35]" aria-label="Previous special poster">
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button type="button" onClick={goToNextSpecialBanner} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow transition-transform hover:scale-105 hover:bg-white hover:text-[#B21E35]" aria-label="Next special poster">
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-1 items-end justify-between gap-4 pt-6">
+                  <div className="max-w-[60%]" />
+                  {specialBanners.length > 0 && (
+                    <div />
+                  )}
+                </div>
+              </div>
             </motion.div>
 
             <motion.div 

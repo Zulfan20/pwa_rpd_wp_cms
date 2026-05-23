@@ -29,6 +29,40 @@ before update on public.admin_users
 for each row
 execute function public.set_updated_at();
 
+create table if not exists public.program_banners (
+  id uuid primary key default gen_random_uuid(),
+  section text not null,
+  image_url text not null,
+  alt_text text,
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_program_banners_updated_at on public.program_banners;
+create trigger trg_program_banners_updated_at
+before update on public.program_banners
+for each row
+execute function public.set_updated_at();
+
+alter table public.program_banners enable row level security;
+
+drop policy if exists "program_banners_select_public" on public.program_banners;
+create policy "program_banners_select_public"
+on public.program_banners
+for select
+to anon, authenticated
+using (is_active = true);
+
+drop policy if exists "program_banners_service_all" on public.program_banners;
+create policy "program_banners_service_all"
+on public.program_banners
+for all
+to service_role
+using (true)
+with check (true);
+
 alter table public.admin_users enable row level security;
 
 -- Signed in users can read only their own admin row.
@@ -56,6 +90,7 @@ do $$
 declare
   t text;
   cms_tables text[] := array[
+    'program_banners',
     'poster_slides',
     'music_list',
     'site_settings',
@@ -94,6 +129,76 @@ begin
     );
   end loop;
 end $$;
+
+-- Storage setup for CMS image uploads.
+-- MediaUploader defaults to bucket: cms-images
+do $$
+begin
+  if not exists (select 1 from storage.buckets where id = 'cms-images') then
+    perform storage.create_bucket('cms-images', public => true, file_size_limit => 10485760, allowed_mime_types => array['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+  end if;
+end $$;
+
+-- Allow public read of uploaded objects in cms-images.
+drop policy if exists "cms_images_public_read" on storage.objects;
+create policy "cms_images_public_read"
+on storage.objects
+for select
+to anon, authenticated
+using (bucket_id = 'cms-images');
+
+-- Allow authenticated admins to upload into cms-images.
+drop policy if exists "cms_images_admin_insert" on storage.objects;
+create policy "cms_images_admin_insert"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'cms-images'
+  and exists (
+    select 1
+    from public.admin_users a
+    where a.user_id = auth.uid() and a.is_active = true
+  )
+);
+
+-- Allow authenticated admins to update objects in cms-images.
+drop policy if exists "cms_images_admin_update" on storage.objects;
+create policy "cms_images_admin_update"
+on storage.objects
+for update
+to authenticated
+using (
+  bucket_id = 'cms-images'
+  and exists (
+    select 1
+    from public.admin_users a
+    where a.user_id = auth.uid() and a.is_active = true
+  )
+)
+with check (
+  bucket_id = 'cms-images'
+  and exists (
+    select 1
+    from public.admin_users a
+    where a.user_id = auth.uid() and a.is_active = true
+  )
+);
+
+-- Allow authenticated admins to delete objects in cms-images.
+drop policy if exists "cms_images_admin_delete" on storage.objects;
+create policy "cms_images_admin_delete"
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'cms-images'
+  and exists (
+    select 1
+    from public.admin_users a
+    where a.user_id = auth.uid() and a.is_active = true
+  )
+);
 
 -- Example: promote existing auth user to admin (replace email)
 -- insert into public.admin_users (user_id, email, full_name)

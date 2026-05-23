@@ -1,27 +1,104 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import type { SiteSetting } from "@/lib/supabase";
+import type { ProgramBanner, SiteSetting } from "@/lib/supabase";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+
+type Banner = {
+  image_url: string;
+  alt: string;
+};
+
+function BannerCarousel({ title, banners }: { title: string; banners: Banner[] }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h3 className="text-2xl md:text-4xl font-black italic uppercase leading-none text-white">
+            {title}
+          </h3>
+        </div>
+      </div>
+
+      <Carousel opts={{ align: "start", loop: true }} className="relative w-full">
+        <CarouselContent>
+          {banners.map((banner, index) => (
+            <CarouselItem key={`${banner.alt}-${index}`} className="basis-full md:basis-1/2 lg:basis-1/3">
+              <div className="relative aspect-square overflow-hidden rounded-[18px] md:rounded-[26px] border border-white/10 shadow-[0_24px_80px_rgba(0,0,0,0.35)] bg-black/20 max-w-[320px] mx-auto w-full">
+                <Image
+                  src={banner.image_url}
+                  alt={banner.alt}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 66vw"
+                  priority={index === 0}
+                />
+              </div>
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+        <CarouselPrevious className="left-3 top-1/2 -translate-y-1/2 border-white/15 bg-black/40 text-white backdrop-blur-md hover:bg-black/60" />
+        <CarouselNext className="right-3 top-1/2 -translate-y-1/2 border-white/15 bg-black/40 text-white backdrop-blur-md hover:bg-black/60" />
+      </Carousel>
+    </div>
+  );
+}
 
 export default function ProgramPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const [regularBanners, setRegularBanners] = useState<Banner[]>([]);
+  const [specialBanners, setSpecialBanners] = useState<Banner[]>([]);
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      const { data } = await supabase.from("site_settings").select("*");
-      if (!data) return;
+    const fetchCMSData = async () => {
+      const [settingsRes, bannersRes] = await Promise.all([
+        supabase.from("site_settings").select("*"),
+        supabase
+          .from("program_banners")
+          .select("*")
+          .eq("is_active", true)
+          .order("section", { ascending: true })
+          .order("sort_order", { ascending: true }),
+      ]);
 
-      const settingsMap: Record<string, string> = {};
-      data.forEach((setting: SiteSetting) => {
-        settingsMap[setting.key] = setting.value || "";
-      });
+      if (settingsRes.data) {
+        const settingsMap: Record<string, string> = {
+          what_is_on_tagline: "",
+          what_is_on_date: "",
+        };
+        settingsRes.data.forEach((setting: SiteSetting) => {
+          settingsMap[setting.key] = setting.value || "";
+        });
+        setSettings(settingsMap);
+      }
 
-      setSettings(settingsMap);
+      if (bannersRes.data) {
+        const groupedRegular = bannersRes.data
+          .filter((banner: ProgramBanner) => banner.section === "regular")
+          .map((banner: ProgramBanner) => ({
+            image_url: banner.image_url,
+            alt: banner.alt_text || "Regular program banner",
+          }));
+
+        const groupedSpecial = bannersRes.data
+          .filter((banner: ProgramBanner) => banner.section === "special")
+          .map((banner: ProgramBanner) => ({
+            image_url: banner.image_url,
+            alt: banner.alt_text || "Special program banner",
+          }));
+
+        setRegularBanners(groupedRegular);
+        setSpecialBanners(groupedSpecial);
+      } else {
+        setRegularBanners([]);
+        setSpecialBanners([]);
+      }
     };
 
-    fetchSettings();
+    fetchCMSData();
   }, []);
 
   return (
@@ -58,24 +135,18 @@ export default function ProgramPage() {
             </div>
           </div>
 
-          <div className="relative h-[800px] md:h-[600px] mt-12">
-            <div className="absolute left-0 top-0 bg-white rounded-[50px] p-12 md:p-16 w-full md:w-[65%] h-[350px] md:h-[450px] shadow-2xl flex items-center z-10">
-              <h3 className="text-[#B21E35] text-6xl md:text-8xl font-black leading-[0.85] tracking-tighter">
-                SIARAN<br />
-                REGULER
-              </h3>
-            </div>
-            <div className="absolute right-0 top-[250px] md:top-[150px] bg-[#B21E35] rounded-[50px] p-12 md:p-16 w-full md:w-[60%] h-[350px] md:h-[450px] shadow-2xl flex items-end justify-center z-20 border-[10px] border-[#0a0a0a]">
-              <h3 className="text-white text-6xl md:text-8xl font-black leading-[0.85] tracking-tighter text-center">
-                SIARAN<br />
-                SPESIAL
-              </h3>
-            </div>
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-[-50px] md:bottom-[-20px] z-30">
+          <div className="mt-12 space-y-14 md:space-y-20">
+            {regularBanners.length > 0 && (
+              <BannerCarousel title="Siaran Reguler" banners={regularBanners} />
+            )}
+            {specialBanners.length > 0 && (
+              <BannerCarousel title="Siaran Spesial" banners={specialBanners} />
+            )}
+
+            <div className="flex justify-center pt-2">
               <Link href="/about">
-                <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive h-9 has-[>svg]:px-3 bg-white text-[#B21E35] hover:bg-gray-100 rounded-full px-16 py-10 text-3xl md:text-4xl font-black italic shadow-2xl transition-transform hover:scale-110 border-8 border-[#0a0a0a]">
-                  Know more<br />
-                  about us !
+                <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive h-9 has-[>svg]:px-3 bg-white text-[#B21E35] hover:bg-gray-100 rounded-full px-10 py-4 text-lg md:text-2xl font-black italic shadow-2xl transition-transform hover:scale-105 border-4 md:border-8 border-[#0a0a0a]">
+                  Know more about us !
                 </button>
               </Link>
             </div>

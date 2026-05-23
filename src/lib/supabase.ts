@@ -16,6 +16,17 @@ export type PosterSlide = {
   updated_at: string
 }
 
+export type ProgramBanner = {
+  id: string
+  section: string
+  image_url: string
+  alt_text: string | null
+  sort_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export type MusicItem = {
   id: number
   title: string

@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
-import type { PosterSlide, MusicItem, SiteSetting, CenterPoster, Information, Member, Podcast } from "@/lib/supabase";
+import type { PosterSlide, ProgramBanner, MusicItem, SiteSetting, CenterPoster, Information, Member, Podcast } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -28,8 +29,9 @@ import {
   Headphones,
 } from "lucide-react";
 import Link from "next/link";
+import MediaUploader from "@/components/MediaUploader";
 
-type TabType = "slides" | "music" | "settings" | "poster" | "info" | "members" | "podcasts";
+type TabType = "slides" | "music" | "settings" | "program" | "poster" | "info" | "members" | "podcasts";
 
 export default function AdminDashboard() {
   const [user, setUser] = useState<User | null>(null);
@@ -90,6 +92,7 @@ const tabs = [
       { id: "slides", label: "Poster Slides", icon: ImageIcon },
       { id: "music", label: "Music List", icon: Music },
       { id: "settings", label: "Site Settings", icon: Type },
+      { id: "program", label: "Program Banners", icon: ImageIcon },
       { id: "poster", label: "Center Poster", icon: FileImage },
       { id: "info", label: "Information", icon: Info },
       { id: "members", label: "Members", icon: Users },
@@ -179,6 +182,7 @@ const tabs = [
             {activeTab === "slides" && <SlidesManager />}
             {activeTab === "music" && <MusicManager />}
             {activeTab === "settings" && <SettingsManager />}
+            {activeTab === "program" && <ProgramBannersManager />}
             {activeTab === "poster" && <PosterManager />}
             {activeTab === "info" && <InfoManager />}
             {activeTab === "members" && <MembersManager />}
@@ -485,6 +489,172 @@ function SettingsManager() {
   );
 }
 
+function ProgramBannersManager() {
+  const [banners, setBanners] = useState<ProgramBanner[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    section: "regular",
+    image_url: "",
+    alt_text: "",
+    sort_order: 0,
+    is_active: true,
+  });
+
+  useEffect(() => {
+    fetchBanners();
+  }, []);
+
+  const fetchBanners = async () => {
+    const { data } = await supabase
+      .from("program_banners")
+      .select("*")
+      .order("section", { ascending: true })
+      .order("sort_order", { ascending: true });
+
+    setBanners(data || []);
+    setLoading(false);
+  };
+
+  const handleSave = async () => {
+    const payload = {
+      section: formData.section,
+      image_url: formData.image_url,
+      alt_text: formData.alt_text || null,
+      sort_order: Number(formData.sort_order) || 0,
+      is_active: formData.is_active,
+    };
+
+    if (editingId) {
+      await supabase.from("program_banners").update(payload).eq("id", editingId);
+    } else {
+      await supabase.from("program_banners").insert(payload);
+    }
+
+    setEditingId(null);
+    setFormData({ section: "regular", image_url: "", alt_text: "", sort_order: 0, is_active: true });
+    fetchBanners();
+  };
+
+  const handleDelete = async (id: string) => {
+    await supabase.from("program_banners").delete().eq("id", id);
+    fetchBanners();
+  };
+
+  const startEdit = (banner: ProgramBanner) => {
+    setEditingId(banner.id);
+    setFormData({
+      section: banner.section,
+      image_url: banner.image_url,
+      alt_text: banner.alt_text || "",
+      sort_order: banner.sort_order,
+      is_active: banner.is_active,
+    });
+  };
+
+  if (loading) return <LoadingState />;
+
+  const sectionLabels: Record<string, string> = {
+    regular: "Siaran Reguler",
+    special: "Siaran Spesial",
+  };
+
+  const groupedBanners = {
+    regular: banners.filter((banner) => banner.section === "regular"),
+    special: banners.filter((banner) => banner.section === "special"),
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-[#121212] rounded-2xl p-6 border border-white/5">
+        <h3 className="text-white font-bold mb-4">{editingId ? "Edit Program Banner" : "Add Program Banner"}</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <select
+            value={formData.section}
+            onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#B21E35]"
+          >
+            <option value="regular" className="bg-[#121212]">Siaran Reguler</option>
+            <option value="special" className="bg-[#121212]">Siaran Spesial</option>
+          </select>
+          <input
+            type="number"
+            placeholder="Sort Order"
+            value={formData.sort_order}
+            onChange={(e) => setFormData({ ...formData, sort_order: Number(e.target.value) })}
+            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]"
+          />
+          <div className="md:col-span-2">
+            <MediaUploader
+              initialUrl={formData.image_url}
+              onUpload={(url) => setFormData({ ...formData, image_url: url })}
+            />
+          </div>
+          <input
+            type="text"
+            placeholder="Alt Text (optional)"
+            value={formData.alt_text}
+            onChange={(e) => setFormData({ ...formData, alt_text: e.target.value })}
+            className="md:col-span-2 w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]"
+          />
+          <label className="md:col-span-2 flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.is_active}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+              className="w-5 h-5 rounded border-white/10 bg-white/5 text-[#B21E35] focus:ring-[#B21E35]"
+            />
+            <span className="text-white/70">Active</span>
+          </label>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <Button onClick={handleSave} className="bg-[#B21E35] hover:bg-[#8B0000] text-white">
+            <Save className="w-4 h-4 mr-2" /> {editingId ? "Update" : "Add"} Banner
+          </Button>
+          {editingId && (
+            <Button
+              onClick={() => {
+                setEditingId(null);
+                setFormData({ section: "regular", image_url: "", alt_text: "", sort_order: 0, is_active: true });
+              }}
+              variant="outline"
+              className="border-white/10 text-white hover:bg-white/5"
+            >
+              <X className="w-4 h-4 mr-2" /> Cancel
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {(["regular", "special"] as const).map((section) => (
+        <div key={section} className="space-y-3">
+          <h4 className="text-white font-bold text-lg">{sectionLabels[section]}</h4>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {groupedBanners[section].map((banner) => (
+              <div key={banner.id} className={`bg-[#121212] rounded-xl p-2 border border-white/5 ${!banner.is_active ? "opacity-50" : ""}`}>
+                <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-white/5">
+                  <img src={banner.image_url} alt={banner.alt_text || "Program banner"} className="w-full h-full object-cover" />
+                </div>
+                <div className="mt-2 flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{banner.alt_text || "Program banner"}</p>
+                    <p className="text-white/35 text-[10px]">Sort: {banner.sort_order}</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => startEdit(banner)} className="p-1.5 text-white/60 hover:text-white hover:bg-white/5 rounded-md"><Edit2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => handleDelete(banner.id)} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {groupedBanners[section].length === 0 && <EmptyState message={`No ${sectionLabels[section]} banners yet.`} />}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PosterManager() {
   const [posters, setPosters] = useState<CenterPoster[]>([]);
   const [loading, setLoading] = useState(true);
@@ -532,26 +702,40 @@ function PosterManager() {
           <input type="text" placeholder="Image URL" value={formData.image_url} onChange={(e) => setFormData({ ...formData, image_url: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
           <input type="text" placeholder="Alt Text" value={formData.alt_text} onChange={(e) => setFormData({ ...formData, alt_text: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
           <input type="text" placeholder="Link (optional)" value={formData.link} onChange={(e) => setFormData({ ...formData, link: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
-          <div className="flex gap-2">
+          <div className="flex gap-2">  
             <Button onClick={handleSave} className="bg-[#B21E35] hover:bg-[#8B0000] text-white"><Save className="w-4 h-4 mr-2" /> {editingId ? "Update" : "Add"} Poster</Button>
             {editingId && <Button onClick={() => { setEditingId(null); setFormData({ image_url: "", alt_text: "", link: "" }); }} variant="outline" className="border-white/10 text-white hover:bg-white/5"><X className="w-4 h-4 mr-2" /> Cancel</Button>}
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4">
-        {posters.map((poster) => (
-          <div key={poster.id} className="bg-[#121212] rounded-2xl p-4 border border-white/5 flex items-center gap-4">
-            <div className="w-32 h-24 bg-white/5 rounded-lg overflow-hidden">{poster.image_url && <img src={poster.image_url} alt="" className="w-full h-full object-cover" />}</div>
-            <div className="flex-1"><p className="text-white font-medium">{poster.alt_text || "Center Poster"}</p><p className="text-white/40 text-xs truncate">{poster.image_url}</p></div>
-            <div className="flex gap-2">
-              <button onClick={() => startEdit(poster)} className="p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-              <button onClick={() => handleDelete(poster.id)} className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-            </div>
-          </div>
-        ))}
-        {posters.length === 0 && <EmptyState message="No center poster set." />}
-      </div>
+      {posters.length > 0 ? (
+        <Carousel opts={{ align: "start", loop: false }} className="relative w-full">
+          <CarouselContent className="-ml-2">
+            {posters.map((poster) => (
+              <CarouselItem key={poster.id} className="pl-2 basis-full sm:basis-1/2 lg:basis-1/3">
+                <div className="bg-[#121212] rounded-xl p-2 border border-white/5 flex h-full flex-col gap-2">
+                  <div className="relative aspect-square w-full overflow-hidden rounded-md bg-white/5">
+                    {poster.image_url && <img src={poster.image_url} alt="" className="w-full h-full object-cover" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white text-sm font-medium truncate">{poster.alt_text || "Center Poster"}</p>
+                    <p className="text-white/35 text-[10px] truncate">{poster.image_url}</p>
+                  </div>
+                  <div className="flex items-center justify-end gap-1 flex-shrink-0">
+                    <button onClick={() => startEdit(poster)} className="p-1.5 text-white/60 hover:text-white hover:bg-white/5 rounded-md"><Edit2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => handleDelete(poster.id)} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <CarouselPrevious className="left-2 top-1/2 -translate-y-1/2 border-white/15 bg-black/40 text-white backdrop-blur-md hover:bg-black/60" />
+          <CarouselNext className="right-2 top-1/2 -translate-y-1/2 border-white/15 bg-black/40 text-white backdrop-blur-md hover:bg-black/60" />
+        </Carousel>
+      ) : (
+        <EmptyState message="No center poster set." />
+      )}
     </div>
   );
 }
