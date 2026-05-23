@@ -140,6 +140,11 @@ export default function AboutPage() {
   };
 
   const activeDir = activeDirectorate ? directorates.find(d => d.key === activeDirectorate) : null;
+  const mobileMembers = activeDir
+    ? activeDir.divisions && activeDivision
+      ? getMembersByDivision(activeDirectorate as string, activeDivision)
+      : getMembersByDirectorate(activeDirectorate)
+    : [];
 
   return (
     <div className="relative min-h-screen bg-black overflow-x-hidden">
@@ -360,30 +365,24 @@ export default function AboutPage() {
           </div>
 
           <div className="max-w-7xl mx-auto px-6 relative z-10">
-            {/* Title */}
-            <motion.h2
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="text-white text-4xl md:text-6xl font-black italic text-center mb-10"
-              style={{ fontFamily: 'Fredoka, sans-serif' }}
-            >
-              Our Team Members
-            </motion.h2>
+            {/* Mobile layout */}
+            <div className="md:hidden mb-10">
+              <motion.h2
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="text-white text-4xl font-black italic text-center mb-6 leading-none"
+                style={{ fontFamily: 'Fredoka, sans-serif', textShadow: '0 4px 0 #fff' }}
+              >
+                Our Team Members
+              </motion.h2>
 
-            {/* Directorate Icons Bar */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="flex justify-center mb-8 relative"
-            >
-              <div className="bg-[#B91638] rounded-full px-6 py-3 flex items-center gap-2 md:gap-4">
-                {directorates.map((dir, index) => (
-                  <div key={dir.key} className="flex items-center relative">
-                    <button
+              <div className="flex items-stretch gap-4">
+                <div className="w-[84px] bg-[#B91638] rounded-[34px] py-6 px-0 flex flex-col items-center justify-between min-h-[560px] shadow-2xl">
+                  {directorates.map((dir, index) => (
+                    <div key={dir.key} className="flex flex-col items-center w-full">
+                      <button
                         onClick={() => {
                           if (activeDirectorate === dir.key) {
                             setActiveDirectorate(null);
@@ -393,153 +392,264 @@ export default function AboutPage() {
                             setActiveDivision(null);
                           }
                         }}
-                        className={`p-2 rounded-full transition-all ${
-                          activeDirectorate === dir.key 
-                            ? 'bg-white/20 scale-110' 
-                            : 'hover:bg-white/10'
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                          activeDirectorate === dir.key ? 'bg-white/20 scale-110' : 'hover:bg-white/10'
                         }`}
                         title={dir.label}
+                        aria-label={dir.label}
                       >
-                      <DirectorateIcon type={dir.icon} />
-                    </button>
-                    {index < directorates.length - 1 && (
-                      <div className="w-px h-6 bg-white/30 mx-1 md:mx-2" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </motion.div>
+                        <DirectorateIcon type={dir.icon} />
+                      </button>
+                      {index < directorates.length - 1 && (
+                        <div className="w-10 h-[3px] bg-white/30 rounded-full my-5" />
+                      )}
+                    </div>
+                  ))}
+                </div>
 
-            {/* Popup Modal for Team Content */}
-            <AnimatePresence>
-              {activeDirectorate && activeDir && (
-                <motion.div
-                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                  className="relative"
-                >
-                  {/* Triangle pointer */}
-                  <div 
-                    className="absolute -top-3 left-1/2 -translate-x-1/2 w-0 h-0"
-                    style={{
-                      borderLeft: '16px solid transparent',
-                      borderRight: '16px solid transparent',
-                      borderBottom: '16px solid #B91638',
-                    }}
-                  />
-                  
-                  {/* Main popup card */}
-                  <div className="bg-[#B91638] rounded-[30px] p-6 md:p-8 relative">
-                    {/* Close button */}
-                    <button 
-                      onClick={() => setActiveDirectorate(null)}
-                      className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-full transition-colors"
-                    >
-                      <X className="w-5 h-5 text-white" />
-                    </button>
-
-                    {loading ? (
-                      <div className="flex items-center justify-center py-16">
-                        <div className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="flex-1 bg-white rounded-[32px] p-4 pt-5 shadow-2xl min-h-[560px]">
+                  <div className="mb-5">
+                    {activeDir?.divisions ? (
+                      <div className="relative">
+                        <select
+                          value={activeDivision || ''}
+                          onChange={(e) => setActiveDivision(e.target.value || null)}
+                          className="w-full appearance-none rounded-full border-4 border-[#B91638] bg-white px-5 py-3 pr-14 text-[#B91638] text-2xl font-black outline-none"
+                          style={{ fontFamily: 'Fredoka, sans-serif' }}
+                        >
+                          <option value="">Division</option>
+                          {activeDir.divisions.map((division) => (
+                            <option key={division} value={division}>
+                              {division}
+                            </option>
+                          ))}
+                        </select>
+                        <svg className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 w-6 h-6 text-[#B91638]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
                       </div>
                     ) : (
-                        <>
-                          {/* Division Tabs - Only show for directorates with divisions */}
-                          {activeDir.divisions ? (
-                            <div className="flex flex-wrap gap-0 mb-6">
-                              {activeDir.divisions.map((division, idx) => {
-                                const isActive = activeDivision === division;
-                                const isFirst = idx === 0;
-                                const isLast = idx === activeDir.divisions!.length - 1;
-                                return (
-                                  <button 
-                                    key={division}
-                                    onClick={() => setActiveDivision(isActive ? null : division)}
-                                    className={`px-6 py-3 font-bold text-sm transition-all ${
-                                      isActive 
-                                        ? 'bg-white text-[#B91638]' 
-                                        : 'bg-[#6B1028] text-white hover:bg-[#5a0d22]'
-                                    } ${isFirst ? 'rounded-l-xl' : ''} ${isLast ? 'rounded-r-xl' : ''}`}
-                                  >
-                                    {division}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="mb-6">
-                              <h3 className="text-white font-bold text-xl">{activeDir.label}</h3>
-                            </div>
-                          )}
-
-                          {/* Members Grid with Horizontal Scroll */}
-                          {activeDir.divisions ? (
-                            <>
-                              {activeDivision ? (
-                                /* Show only the selected division's members */
-                                <div 
-                                  className="flex gap-4 overflow-x-auto pb-4"
-                                  style={{ scrollbarWidth: 'thin' }}
-                                >
-                                  {getMembersByDivision(activeDirectorate, activeDivision).length > 0 ? (
-                                    getMembersByDivision(activeDirectorate, activeDivision).map((member) => (
-                                      <MemberCard key={member.id} member={member} />
-                                    ))
-                                  ) : (
-                                    <div className="w-full text-center py-10">
-                                      <div className="w-16 h-16 rounded-full bg-[#6B1028] flex items-center justify-center mx-auto mb-3">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-8 h-8 opacity-50">
-                                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                          <circle cx="12" cy="7" r="4" />
-                                        </svg>
-                                      </div>
-                                      <p className="text-white/50">No members in {activeDivision}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                /* No division selected - show instruction */
-                                <div className="w-full text-center py-10">
-                                  <p className="text-white/60">Click on a division above to view members</p>
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            /* For BOD and Sobat Siar - show all members in horizontal scroll */
-                            <div 
-                              className="flex gap-4 overflow-x-auto pb-4"
-                              style={{ scrollbarWidth: 'thin' }}
-                            >
-                              {getMembersByDirectorate(activeDirectorate).length > 0 ? (
-                                getMembersByDirectorate(activeDirectorate).map((member) => (
-                                  <MemberCard key={member.id} member={member} />
-                                ))
-                              ) : (
-                                <div className="w-full text-center py-10">
-                                  <p className="text-white/50">No members in this section</p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </>
+                      <div className="rounded-full border-4 border-[#B91638] bg-white px-5 py-3 text-[#B91638] text-2xl font-black text-center" style={{ fontFamily: 'Fredoka, sans-serif' }}>
+                        {activeDir?.label || 'Directorate'}
+                      </div>
                     )}
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
-            {/* Instruction text when no directorate is selected */}
-            {!activeDirectorate && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-white/40 text-center text-sm mt-4"
+                  <div className="space-y-6 max-h-[470px] overflow-y-auto pr-1">
+                    {mobileMembers.length > 0 ? (
+                      mobileMembers.map((member) => (
+                        <div key={member.id} className="rounded-[18px] bg-[#6B1028] overflow-hidden shadow-xl min-h-[260px]">
+                          <div className="relative h-[220px] bg-[#5a0d22]">
+                            <Image
+                              src={member.photo_url || member.image_url || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=800&auto=format&fit=crop'}
+                              alt={member.name}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="px-4 py-3 bg-white">
+                            <p className="text-[#B91638] font-black text-lg leading-tight truncate" style={{ fontFamily: 'Fredoka, sans-serif' }}>
+                              {member.name}
+                            </p>
+                            <p className="text-[#6f6f6f] text-sm font-semibold truncate">
+                              {member.position || member.role || activeDir?.label || 'Member'}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-[18px] bg-[#6B1028] min-h-[260px] flex items-center justify-center text-white/60 font-semibold">
+                        {activeDirectorate ? 'No members in this section' : 'Select a directorate'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Desktop layout */}
+            <div className="hidden md:block">
+              {/* Title */}
+              <motion.h2
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6 }}
+                className="text-white text-4xl md:text-6xl font-black italic text-center mb-10"
+                style={{ fontFamily: 'Fredoka, sans-serif' }}
               >
-                Click on an icon above to view team members
-              </motion.p>
-            )}
+                Our Team Members
+              </motion.h2>
+
+              {/* Directorate Icons Bar */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="flex justify-center mb-8 relative"
+              >
+                <div className="bg-[#B91638] rounded-full px-6 py-3 flex items-center gap-2 md:gap-4">
+                  {directorates.map((dir, index) => (
+                    <div key={dir.key} className="flex items-center relative">
+                      <button
+                          onClick={() => {
+                            if (activeDirectorate === dir.key) {
+                              setActiveDirectorate(null);
+                              setActiveDivision(null);
+                            } else {
+                              setActiveDirectorate(dir.key);
+                              setActiveDivision(null);
+                            }
+                          }}
+                          className={`p-2 rounded-full transition-all ${
+                            activeDirectorate === dir.key 
+                              ? 'bg-white/20 scale-110' 
+                              : 'hover:bg-white/10'
+                          }`}
+                          title={dir.label}
+                        >
+                        <DirectorateIcon type={dir.icon} />
+                      </button>
+                      {index < directorates.length - 1 && (
+                        <div className="w-px h-6 bg-white/30 mx-1 md:mx-2" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Popup Modal for Team Content */}
+              <AnimatePresence>
+                {activeDirectorate && activeDir && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                    transition={{ duration: 0.3 }}
+                    className="relative"
+                  >
+                    {/* Triangle pointer */}
+                    <div 
+                      className="absolute -top-3 left-1/2 -translate-x-1/2 w-0 h-0"
+                      style={{
+                        borderLeft: '16px solid transparent',
+                        borderRight: '16px solid transparent',
+                        borderBottom: '16px solid #B91638',
+                      }}
+                    />
+                    
+                    {/* Main popup card */}
+                    <div className="bg-[#B91638] rounded-[30px] p-6 md:p-8 relative">
+                      {/* Close button */}
+                      <button 
+                        onClick={() => setActiveDirectorate(null)}
+                        className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-full transition-colors"
+                      >
+                        <X className="w-5 h-5 text-white" />
+                      </button>
+
+                      {loading ? (
+                        <div className="flex items-center justify-center py-16">
+                          <div className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                        </div>
+                      ) : (
+                          <>
+                            {/* Division Tabs - Only show for directorates with divisions */}
+                            {activeDir.divisions ? (
+                              <div className="flex flex-wrap gap-0 mb-6">
+                                {activeDir.divisions.map((division, idx) => {
+                                  const isActive = activeDivision === division;
+                                  const isFirst = idx === 0;
+                                  const isLast = idx === activeDir.divisions!.length - 1;
+                                  return (
+                                    <button 
+                                      key={division}
+                                      onClick={() => setActiveDivision(isActive ? null : division)}
+                                      className={`px-6 py-3 font-bold text-sm transition-all ${
+                                        isActive 
+                                          ? 'bg-white text-[#B91638]' 
+                                          : 'bg-[#6B1028] text-white hover:bg-[#5a0d22]'
+                                      } ${isFirst ? 'rounded-l-xl' : ''} ${isLast ? 'rounded-r-xl' : ''}`}
+                                    >
+                                      {division}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="mb-6">
+                                <h3 className="text-white font-bold text-xl">{activeDir.label}</h3>
+                              </div>
+                            )}
+
+                            {/* Members Grid with Horizontal Scroll */}
+                            {activeDir.divisions ? (
+                              <>
+                                {activeDivision ? (
+                                  /* Show only the selected division's members */
+                                  <div 
+                                    className="flex gap-4 overflow-x-auto pb-4"
+                                    style={{ scrollbarWidth: 'thin' }}
+                                  >
+                                    {getMembersByDivision(activeDirectorate, activeDivision).length > 0 ? (
+                                      getMembersByDivision(activeDirectorate, activeDivision).map((member) => (
+                                        <MemberCard key={member.id} member={member} />
+                                      ))
+                                    ) : (
+                                      <div className="w-full text-center py-10">
+                                        <div className="w-16 h-16 rounded-full bg-[#6B1028] flex items-center justify-center mx-auto mb-3">
+                                          <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-8 h-8 opacity-50">
+                                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                            <circle cx="12" cy="7" r="4" />
+                                          </svg>
+                                        </div>
+                                        <p className="text-white/50">No members in {activeDivision}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  /* No division selected - show instruction */
+                                  <div className="w-full text-center py-10">
+                                    <p className="text-white/60">Click on a division above to view members</p>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              /* For BOD and Sobat Siar - show all members in horizontal scroll */
+                              <div 
+                                className="flex gap-4 overflow-x-auto pb-4"
+                                style={{ scrollbarWidth: 'thin' }}
+                              >
+                                {getMembersByDirectorate(activeDirectorate).length > 0 ? (
+                                  getMembersByDirectorate(activeDirectorate).map((member) => (
+                                    <MemberCard key={member.id} member={member} />
+                                  ))
+                                ) : (
+                                  <div className="w-full text-center py-10">
+                                    <p className="text-white/50">No members in this section</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Instruction text when no directorate is selected */}
+              {!activeDirectorate && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-white/40 text-center text-sm mt-4"
+                >
+                  Click on an icon above to view team members
+                </motion.p>
+              )}
+            </div>
           </div>
         </section>
 

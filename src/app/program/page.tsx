@@ -1,23 +1,84 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+import type { SiteSetting } from "@/lib/supabase";
 
 export default function ProgramPage() {
+  const [settings, setSettings] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const { data } = await supabase.from("site_settings").select("*");
+      if (!data) return;
+
+      const settingsMap: Record<string, string> = {};
+      data.forEach((setting: SiteSetting) => {
+        settingsMap[setting.key] = setting.value || "";
+      });
+
+      setSettings(settingsMap);
+    };
+
+    fetchSettings();
+  }, []);
+
   return (
     <div className="bg-[#0a0a0a] min-h-screen text-white">
-      {/* Hero Section - Clean Red Boxes Design */}
-      <section className="pt-20 md:pt-24 pb-8 md:pb-10 bg-white">
-        <div className="max-w-[280px] md:max-w-xs mx-auto px-4">
-          {/* Compact 2x2 grid of red boxes */}
-          <div className="grid grid-cols-2 gap-1.5">
-            <div className="aspect-square bg-[#B21E35] rounded" />
-            <div className="aspect-square bg-transparent" />
-            <div className="aspect-square bg-transparent" />
-            <div className="aspect-square bg-[#B21E35]/40 rounded" />
+      {/* What is on Section */}
+      <section className="relative py-32 px-6 bg-[#0a0a0a] overflow-hidden">
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-20 gap-12">
+            <div>
+              <h2 className="text-white text-5xl md:text-7xl font-black italic uppercase leading-[0.8]">
+                What is on <br />
+                <span className="text-[#B21E35]">RADIO PPI DUNIA</span>
+                <span className="text-white"> ?</span>
+              </h2>
+            </div>
+            <div className="text-left md:text-right">
+              <p className="text-[#B21E35] italic text-lg md:text-xl font-medium">
+                {settings.what_is_on_tagline ? (
+                  settings.what_is_on_tagline.split("\n").map((line, index) => (
+                    <span key={index} className="block">
+                      {line}
+                    </span>
+                  ))
+                ) : (
+                  <>
+                    &quot;Melangkah Menuju Awal Baru<br />
+                    bersama Radio PPI Dunia&quot;
+                  </>
+                )}
+              </p>
+              <span className="text-white font-black text-2xl md:text-4xl mt-4 block">
+                -{settings.what_is_on_date || "December 2025"}-
+              </span>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-1.5 mt-1.5">
-            <div className="aspect-[4/3] bg-[#B21E35]/40 rounded" />
-            <div className="aspect-[4/3] bg-[#B21E35] rounded" />
+
+          <div className="relative h-[800px] md:h-[600px] mt-12">
+            <div className="absolute left-0 top-0 bg-white rounded-[50px] p-12 md:p-16 w-full md:w-[65%] h-[350px] md:h-[450px] shadow-2xl flex items-center z-10">
+              <h3 className="text-[#B21E35] text-6xl md:text-8xl font-black leading-[0.85] tracking-tighter">
+                SIARAN<br />
+                REGULER
+              </h3>
+            </div>
+            <div className="absolute right-0 top-[250px] md:top-[150px] bg-[#B21E35] rounded-[50px] p-12 md:p-16 w-full md:w-[60%] h-[350px] md:h-[450px] shadow-2xl flex items-end justify-center z-20 border-[10px] border-[#0a0a0a]">
+              <h3 className="text-white text-6xl md:text-8xl font-black leading-[0.85] tracking-tighter text-center">
+                SIARAN<br />
+                SPESIAL
+              </h3>
+            </div>
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-[-50px] md:bottom-[-20px] z-30">
+              <Link href="/about">
+                <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive h-9 has-[>svg]:px-3 bg-white text-[#B21E35] hover:bg-gray-100 rounded-full px-16 py-10 text-3xl md:text-4xl font-black italic shadow-2xl transition-transform hover:scale-110 border-8 border-[#0a0a0a]">
+                  Know more<br />
+                  about us !
+                </button>
+              </Link>
+            </div>
           </div>
         </div>
       </section>

@@ -46,7 +46,7 @@ function TrackItem({
   isPlaying: boolean;
 }) {
   const displayTitle = track.title;
-  const displaySubtitle = track.subtitle || track.description || "";
+  const displaySubtitle = track.subtitle || "";
   
   return (
     <div className={`flex items-center gap-3 px-4 py-3 border-b border-[#a01a30]/40 hover:bg-[#a01a30]/30 transition-colors ${isPlaying ? 'bg-[#a01a30]/40' : ''}`}>
@@ -258,7 +258,7 @@ export default function PodcastPage() {
         </section>
 
         {/* Section 2 - Siaran Special HUT & Drama */}
-        <section className="py-12 px-6 md:px-12 lg:px-16">
+        <section id="hut-rpd" className="py-12 px-6 md:px-12 lg:px-16 scroll-mt-24">
           <h2 
             className="text-2xl md:text-4xl font-black italic text-white mb-8"
             style={{ 

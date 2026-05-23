@@ -5,6 +5,8 @@ import ErrorReporter from "@/components/ErrorReporter";
 import Script from "next/script";
 import { Navbar } from "@/components/Navbar";
 import InstallButton from "@/components/InstallButton";
+import ListenNowPlayer from "@/components/ListenNowPlayer";
+import GlobalChatBox from "@/components/GlobalChatBox";
 
 export const metadata: Metadata = {
   title: "RPD Mobile",
@@ -61,6 +63,8 @@ export default function RootLayout({
           data-custom-data='{"appName": "YourApp", "version": "1.0.0", "greeting": "hi"}'
         />
         <Navbar />
+        <ListenNowPlayer />
+        <GlobalChatBox />
         {children}
         <InstallButton />
         <VisualEditsMessenger />

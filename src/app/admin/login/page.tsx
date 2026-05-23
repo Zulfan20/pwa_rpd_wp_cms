@@ -20,13 +20,41 @@ export default function AdminLogin() {
     setLoading(true);
     setError("");
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
       setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    const userId = data.user?.id;
+    if (!userId) {
+      setError("Unable to read authenticated user.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: adminRows, error: adminError } = await supabase
+      .from("admin_users")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .limit(1);
+
+    if (adminError) {
+      await supabase.auth.signOut();
+      setError("Admin access is not configured yet. Please run CMS admin SQL setup.");
+      setLoading(false);
+      return;
+    }
+
+    if (!adminRows || adminRows.length === 0) {
+      await supabase.auth.signOut();
+      setError("This account is not authorized to access the dashboard.");
       setLoading(false);
       return;
     }

@@ -3,24 +3,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { 
-  ChevronUp, 
-  Headphones, 
-  X, 
-  Play, 
-  Pause,
-  SkipBack, 
-  SkipForward, 
-  Airplay,
-  ChevronDown,
   SlidersHorizontal,
   Cookie,
-  Mic2
+  Mic2,
+  ChevronUp
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import type { SiteSetting, Member } from "@/lib/supabase";
+import type { SiteSetting, Member, MusicItem } from "@/lib/supabase";
 
 function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -56,21 +48,74 @@ function usePWAInstall() {
   return { promptInstall };
 }
 
+function RadioVibeStrip() {
+  const bars: number[] = [18, 34, 24, 42, 28, 38, 20, 32];
+
+  return (
+    <div className="mt-2 flex w-full max-w-[280px] items-center justify-center gap-2 rounded-[24px] border border-white/15 bg-black/20 px-3 py-2 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.28)] sm:max-w-none sm:justify-end sm:gap-3 sm:rounded-full sm:px-4 sm:py-3">
+      <div className="flex h-6 items-end gap-1 sm:h-8 sm:gap-1.5">
+        {bars.map((height, index) => (
+          <motion.span
+            key={index}
+            animate={{ height: [height * 0.6, height, height * 0.75] }}
+            transition={{ duration: 1.2, repeat: Infinity, repeatType: "mirror", delay: index * 0.08 }}
+            className="w-1.5 rounded-full bg-gradient-to-t from-[#8B0000] via-[#B21E35] to-[#ff6780] sm:w-1.5"
+            style={{ height: height * 0.7 }}
+          />
+        ))}
+      </div>
+
+      <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
+        <span className="text-[9px] font-black uppercase tracking-[0.35em] text-white/55 sm:text-[10px] sm:tracking-[0.5em]">
+          Melody Tune
+        </span>
+        <span className="hidden text-sm font-bold text-white sm:block">
+          Feels like live radio energy
+        </span>
+        <span className="text-[11px] font-semibold text-white/85 sm:hidden">
+          Live radio vibe
+        </span>
+      </div>
+
+      <div className="ml-1 flex items-center gap-1 text-white/80 sm:ml-2">
+        <motion.span
+          animate={{ y: [0, -4, 0] }}
+          transition={{ duration: 1.4, repeat: Infinity, repeatType: "mirror" }}
+          className="text-base sm:text-lg"
+        >
+          ♪
+        </motion.span>
+        <motion.span
+          animate={{ y: [0, 3, 0] }}
+          transition={{ duration: 1.2, repeat: Infinity, repeatType: "mirror", delay: 0.2 }}
+          className="text-sm sm:text-base"
+        >
+          ♫
+        </motion.span>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { promptInstall } = usePWAInstall();
   
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [featuredMember, setFeaturedMember] = useState<Member | null>(null);
+  const [clbkTracks, setClbkTracks] = useState<MusicItem[]>([]);
+  const [activeTrackIndex, setActiveTrackIndex] = useState(0);
 
   useEffect(() => {
     const fetchCMSData = async () => {
-      const [settingsRes, memberRes] = await Promise.all([
+      const [settingsRes, memberRes, musicRes] = await Promise.all([
         supabase.from("site_settings").select("*"),
         supabase.from("members").select("*").eq("is_featured", true).eq("is_active", true).limit(1).single(),
+        supabase
+          .from("music_list")
+          .select("*")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .limit(10),
       ]);
       
       if (settingsRes.data) {
@@ -81,164 +126,122 @@ export default function Home() {
         setSettings(settingsMap);
       }
       if (memberRes.data) setFeaturedMember(memberRes.data);
+      if (musicRes.data) setClbkTracks(musicRes.data);
     };
     fetchCMSData();
   }, []);
 
   useEffect(() => {
-    const streamUrl = "/api/stream";
-    if (!audioRef.current) {
-      audioRef.current = new Audio(streamUrl);
-      audioRef.current.preload = "none";
-      audioRef.current.crossOrigin = "anonymous";
+    if (activeTrackIndex > clbkTracks.length - 1) {
+      setActiveTrackIndex(0);
     }
+  }, [activeTrackIndex, clbkTracks.length]);
 
-    const audio = audioRef.current;
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
-    const handleError = (e: any) => {
-      console.error("Audio playback error:", e);
-      setIsPlaying(false);
-      if (audio) {
-        audio.load();
-      }
-    };
+  const fallbackTracks: MusicItem[] = Array.from({ length: 10 }, (_, i) => ({
+    id: i + 1,
+    title: `CLBK Track ${i + 1}`,
+    artist: "Radio PPI Dunia",
+    image_url: null,
+    spotify_url: null,
+    sort_order: i + 1,
+    is_active: true,
+    created_at: "",
+    updated_at: "",
+  }));
 
-    audio.addEventListener("play", handlePlay);
-    audio.addEventListener("pause", handlePause);
-    audio.addEventListener("error", handleError);
+  const displayTracks = clbkTracks.length > 0 ? clbkTracks : fallbackTracks;
+  const activeTrack = displayTracks[activeTrackIndex] || displayTracks[0];
 
-    return () => {
-      audio.removeEventListener("play", handlePlay);
-      audio.removeEventListener("pause", handlePause);
-      audio.removeEventListener("error", handleError);
-    };
-  }, []);
-
-  const togglePlay = async () => {
-    if (!audioRef.current) return;
-
-    try {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.src = "/api/stream?t=" + Date.now();
-        await audioRef.current.play();
-      }
-    } catch (error) {
-      console.error("Playback failed:", error);
-    }
+  const goToNextTrack = () => {
+    setActiveTrackIndex((prev) => (prev + 1) % displayTracks.length);
   };
 
   return (
     <div className="bg-[#0a0a0a] overflow-x-hidden min-h-screen text-white font-sans">
       {/* Hero Section */}
-      <main className="relative min-h-screen flex flex-col md:flex-row items-center justify-center overflow-hidden">
-        {/* Background Gradient */}
+      <main className="relative min-h-screen overflow-hidden bg-[#0a0a0a]">
         <div className="absolute inset-0 z-0">
           <Image 
             src="https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/render/image/public/project-uploads/18bad06e-616d-4a15-a836-96eb191d8378/background-1770059086147.png"
             alt="Background"
             fill
-            className="object-cover opacity-60"
+            className="object-cover opacity-25 blur-[1px] scale-105"
             priority
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_28%,rgba(178,30,53,0.55),transparent_36%),linear-gradient(180deg,rgba(0,0,0,0.3)_0%,rgba(10,10,10,0.78)_60%,#0a0a0a_100%)]" />
         </div>
 
-        {/* Faded Background Logo (Mobile) */}
-        <div className="absolute inset-0 flex items-center justify-center z-0 opacity-10 pointer-events-none overflow-hidden">
-          <div className="relative w-[150%] aspect-square md:w-[80%]">
-             <Image 
-                src="https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/render/image/public/project-uploads/18bad06e-616d-4a15-a836-96eb191d8378/logored-1770059969988.png" 
-                alt="Logo Background" 
-                fill 
-                className="object-contain"
-             />
-          </div>
+        <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 to-transparent" />
+
+        <div className="absolute left-0 top-10 h-[70%] w-[55%] rounded-full bg-[#B21E35]/20 blur-3xl pointer-events-none" />
+
+        <div className="absolute inset-x-0 bottom-0 hidden h-[42%] pointer-events-none opacity-95 md:block">
+          <svg viewBox="0 0 1440 420" className="h-full w-full" preserveAspectRatio="none">
+            <path d="M-40 120 C 220 40, 330 290, 560 220 C 720 170, 790 30, 1010 84 C 1185 128, 1270 262, 1480 210" fill="none" stroke="#B21E35" strokeWidth="20" strokeLinecap="round" />
+            <path d="M-40 170 C 210 95, 360 320, 570 260 C 735 214, 810 92, 1015 136 C 1200 175, 1285 300, 1480 255" fill="none" stroke="#ef3858" strokeWidth="7" strokeLinecap="round" />
+          </svg>
         </div>
 
-        {/* Vector Curves */}
-        <div className="absolute bottom-0 left-0 w-full h-[30%] z-10 pointer-events-none opacity-80">
-          <Image 
-            src="https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/render/image/public/project-uploads/18bad06e-616d-4a15-a836-96eb191d8378/Vector-11-1770059086139.png"
-            alt="Curves"
-            fill
-            className="object-cover object-bottom"
-          />
+        <div className="absolute inset-x-0 bottom-0 h-[34%] pointer-events-none opacity-95 md:hidden">
+          <svg viewBox="0 0 390 180" className="h-full w-full" preserveAspectRatio="none">
+            <path d="M-20 74 C 40 40, 78 122, 122 98 C 155 80, 170 30, 212 42 C 252 54, 278 108, 324 96 C 352 88, 372 64, 408 70" fill="none" stroke="#B21E35" strokeWidth="12" strokeLinecap="round" />
+            <path d="M-20 96 C 42 62, 84 140, 128 116 C 160 98, 178 52, 218 64 C 258 76, 284 126, 330 116 C 356 110, 374 92, 408 98" fill="none" stroke="#f08a9a" strokeWidth="5" strokeLinecap="round" />
+          </svg>
         </div>
 
-        <div className="container relative z-20 max-w-7xl mx-auto px-6 md:px-12 flex flex-col md:flex-row items-center gap-12 pt-16 md:pt-20">
-          {/* Mic Asset */}
-            <motion.div 
-              initial={{ opacity: 0, x: -100, rotate: -10 }}
+        <div className="relative z-20 mx-auto flex min-h-[100svh] max-w-7xl items-center px-5 pb-16 pt-16 md:items-start md:px-12 md:pb-28 md:pt-20">
+          <div className="grid w-full items-start justify-items-center gap-8 md:grid-cols-[0.95fr_1.05fr] md:gap-8 md:justify-items-stretch">
+            <motion.div
+              initial={{ opacity: 0, x: -80, rotate: -8 }}
               animate={{ opacity: 1, x: 0, rotate: 0 }}
               transition={{ duration: 0.8, ease: "easeOut" }}
-              className="relative w-full md:w-1/2 h-40 md:h-full md:aspect-square max-w-[200px] md:max-w-[400px] order-1 md:order-1"
+              className="relative order-1 hidden z-20 w-full justify-center md:order-1 md:flex md:justify-start md:-translate-y-14 lg:-translate-y-20"
             >
-              <div className="absolute top-0 left-0 md:relative md:top-auto md:right-auto w-40 md:w-full h-40 md:h-full">
-                <Image 
+              <div className="relative z-10 mt-[-32px] w-[66vw] max-w-[250px] aspect-[4/5] sm:mt-[-12px] sm:max-w-[320px] md:mt-0 md:w-[100%] md:max-w-[620px]">
+                <Image
                   src="https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/render/image/public/project-uploads/18bad06e-616d-4a15-a836-96eb191d8378/mic2-1770060113358.png"
                   alt="Mic"
                   fill
-                  className="object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
+                  className="object-contain drop-shadow-[0_30px_80px_rgba(0,0,0,0.9)]"
                   priority
                 />
               </div>
             </motion.div>
 
-          {/* Text Content */}
-          <div className="flex flex-col items-center md:items-end text-center md:text-right gap-4 md:gap-6 w-full md:w-1/2 order-2 md:order-2">
-              <motion.div 
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="space-y-1 md:space-y-4"
-              >
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold leading-tight tracking-tight text-white drop-shadow-lg">
-                  {settings.hero_title_1 || "Suara Anak Bangsa"}
-                </h1>
-                <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white drop-shadow-md">
-                  {settings.hero_title_2 || "Satu Cinta"}
-                </h2>
-                <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white drop-shadow-md">
-                  {settings.hero_title_3 || "Satu Indonesia"}
-                </h2>
-              </motion.div>
-
-
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.6 }}
-              className="mt-4 md:mt-10 mb-20 md:mb-0"
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.15 }}
+              className="relative order-2 z-10 mt-0 w-full self-center md:order-2 md:mt-0 md:self-auto md:-translate-y-10 lg:-translate-y-14"
             >
-              <Button 
-                onClick={promptInstall}
-                size="lg" 
-                className="bg-[#B21E35] hover:bg-[#8B0000] text-white px-6 md:px-10 py-4 md:py-6 rounded-full text-sm md:text-xl font-bold transition-all hover:scale-105 shadow-[0_10px_30px_rgba(178,30,53,0.4)]"
-              >
-                Download Now !
-              </Button>
+              <div className="relative w-full max-w-[460px] overflow-hidden rounded-[28px] border border-white/10 bg-black/25 px-5 py-7 shadow-[0_30px_120px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:px-6 md:max-w-none md:rounded-[34px] md:px-10 md:py-14">
+                <div className="relative text-center md:text-right">
+                  <div className="mb-4 flex justify-center md:mb-6 md:justify-end">
+                    <RadioVibeStrip />
+                  </div>
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-[0.4em] text-white/75 sm:text-sm sm:tracking-[0.5em] md:mb-4">
+                    Radio PPI Dunia
+                  </p>
+                  <h1 className="font-display text-3xl font-black leading-[0.92] tracking-tight text-white drop-shadow-[0_6px_18px_rgba(0,0,0,0.45)] sm:text-4xl md:text-6xl lg:text-7xl">
+                    <span className="block">{settings.hero_title_1 || "Suara Anak Bangsa"}</span>
+                    <span className="mt-2 block">{settings.hero_title_2 || "Satu Cinta"}</span>
+                    <span className="mt-2 block">{settings.hero_title_3 || "Satu Indonesia"}</span>
+                  </h1>
+
+                  <div className="mt-6 flex flex-col items-center gap-4 md:mt-8 md:items-end">
+                    <Button
+                      onClick={promptInstall}
+                      size="lg"
+                      className="rounded-full bg-[#B21E35] px-6 py-3 text-xs font-black text-white shadow-[0_14px_40px_rgba(178,30,53,0.45)] transition-transform hover:scale-105 hover:bg-[#8B0000] sm:px-7 sm:py-4 sm:text-sm md:px-10 md:py-6 md:text-lg"
+                    >
+                      Download Now !
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           </div>
         </div>
-
-        {/* Listen Now Drawer Button */}
-        <motion.div 
-          initial={{ y: 50, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30"
-        >
-          <button 
-            onClick={() => setIsPlayerOpen(true)}
-            className="bg-[#B21E35] hover:bg-[#8B0000] text-white px-10 py-3 rounded-full flex items-center gap-3 shadow-xl transition-all hover:scale-105"
-          >
-            <span className="font-bold uppercase text-xs md:text-sm tracking-widest">Listen Now</span>
-            <ChevronUp className="w-4 h-4 md:w-5 md:h-5" />
-          </button>
-        </motion.div>
       </main>
 
       {/* Program Icons Section */}
@@ -404,6 +407,121 @@ export default function Home() {
         </div>
       </section>
 
+      {/* CLBK Section */}
+      <section className="relative pt-8 pb-28 px-4 md:px-6 bg-[#0a0a0a] overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -bottom-24 left-0 right-0 h-64 bg-gradient-to-t from-[#B21E35]/60 to-transparent" />
+          <svg className="hidden md:block absolute top-8 right-0 w-[420px] h-[220px] text-[#B21E35]/60" viewBox="0 0 420 220" preserveAspectRatio="none">
+            <path d="M10,200 C120,120 220,180 420,40" fill="none" stroke="currentColor" strokeWidth="2" />
+            <path d="M10,215 C130,140 240,200 420,70" fill="none" stroke="currentColor" strokeWidth="2" />
+          </svg>
+          <svg className="md:hidden absolute top-0 left-0 w-full h-56 text-[#B21E35]/50" viewBox="0 0 360 224" preserveAspectRatio="none">
+            <path d="M0,140 C70,90 130,160 360,40" fill="none" stroke="currentColor" strokeWidth="2" />
+            <path d="M0,160 C90,110 160,180 360,60" fill="none" stroke="currentColor" strokeWidth="2" />
+          </svg>
+        </div>
+
+        <div className="max-w-5xl mx-auto relative z-10">
+          <div className="flex flex-col items-center md:items-end mb-6 md:mb-8 pr-1 md:pr-4">
+            <h2 className="text-[#C3124A] text-3xl md:text-6xl font-black leading-none text-center md:text-right" style={{ fontFamily: "Fredoka, sans-serif" }}>
+              Chart Lagu Baru terKini!
+            </h2>
+            <span className="mt-2 md:mt-3 bg-white text-[#B21E35] rounded-full px-4 md:px-7 py-1 md:py-2 text-xs md:text-2xl font-black" style={{ fontFamily: "Fredoka, sans-serif" }}>
+              versi Radio PPI Dunia
+            </span>
+          </div>
+
+          <div className="relative bg-[#E7E7E7] rounded-[24px] md:rounded-[28px] p-5 md:p-8 min-h-[520px] md:min-h-[560px] shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+            <div className="grid grid-cols-[72px_1fr] md:grid-cols-[84px_1fr] gap-4 md:gap-8 h-full">
+              <div className="overflow-y-auto max-h-[430px] md:max-h-[460px] pr-1 space-y-2 md:space-y-3">
+                {displayTracks.map((track, index) => {
+                  const isActive = index === activeTrackIndex;
+                  return (
+                    <button
+                      key={track.id}
+                      onClick={() => setActiveTrackIndex(index)}
+                      className={`w-full text-left rounded-xl md:rounded-2xl overflow-hidden transition-all border ${
+                        isActive ? "border-[#B21E35] bg-[#B21E35]" : "border-transparent bg-[#B21E35]/95 hover:bg-[#A51A31]"
+                      }`}
+                      aria-label={`CLBK ${index + 1}: ${track.title}`}
+                    >
+                      <div className="relative w-14 h-14 md:w-16 md:h-16 rounded-lg md:rounded-xl bg-[#B21E35] overflow-hidden flex-shrink-0">
+                        {track.image_url ? (
+                          <Image
+                            src={track.image_url}
+                            alt={track.title}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : null}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-col justify-between min-h-[430px] md:min-h-[460px]">
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-1 md:px-2">
+                  <motion.div
+                    key={activeTrack?.id}
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.25 }}
+                    className="w-full flex flex-col items-center"
+                  >
+                    <div className="relative w-40 h-40 md:w-64 md:h-64 rounded-2xl bg-[#B21E35] overflow-hidden shadow-2xl">
+                      {activeTrack?.image_url ? (
+                        <Image
+                          src={activeTrack.image_url}
+                          alt={activeTrack.title}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : null}
+                    </div>
+                    <p className="mt-6 text-[#B21E35] text-xl md:text-4xl font-black leading-tight" style={{ fontFamily: "Fredoka, sans-serif" }}>
+                      {activeTrack?.title}
+                    </p>
+                    <p className="mt-2 text-[#5A5A5A] text-sm md:text-xl font-semibold">
+                      {activeTrack?.artist || "Unknown Artist"}
+                    </p>
+                  </motion.div>
+                </div>
+
+                <div className="flex items-end justify-end pt-4">
+                  <button
+                    onClick={goToNextTrack}
+                    className="text-[#B21E35] text-2xl md:text-4xl font-black hover:opacity-80 transition-opacity"
+                    style={{ fontFamily: "Fredoka, sans-serif" }}
+                  >
+                    NEXT &gt;&gt;&gt;
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {activeTrack?.spotify_url ? (
+              <a
+                href={activeTrack.spotify_url}
+                target="_blank"
+                rel="noreferrer"
+                className="absolute -left-2 md:-left-36 bottom-[-18px] md:bottom-8 bg-[#B21E35] hover:bg-[#8B0000] rounded-2xl md:rounded-r-[22px] md:rounded-l-none px-6 md:px-14 py-4 md:py-7 text-white font-black text-lg md:text-4xl shadow-2xl transition-all"
+                style={{ fontFamily: "Fredoka, sans-serif" }}
+              >
+                Listen on Spotify
+              </a>
+            ) : (
+              <div
+                className="absolute -left-2 md:-left-36 bottom-[-18px] md:bottom-8 bg-[#B21E35] rounded-2xl md:rounded-r-[22px] md:rounded-l-none px-6 md:px-14 py-4 md:py-7 text-white/80 font-black text-lg md:text-4xl shadow-2xl"
+                style={{ fontFamily: "Fredoka, sans-serif" }}
+              >
+                Listen on Spotify
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Where to Find Us Section */}
       <section className="relative py-32 px-6 bg-[#0a0a0a]">
         <div className="max-w-4xl mx-auto relative z-10">
@@ -487,68 +605,6 @@ export default function Home() {
         </div>
       </footer>
 
-      {/* Persistent UI Elements */}
-      <button 
-        onClick={() => setIsChatOpen(!isChatOpen)}
-        className="fixed right-0 top-1/2 -translate-y-1/2 z-40 bg-[#B21E35] backdrop-blur-md text-white py-14 px-4 rounded-l-3xl flex flex-col items-center justify-center gap-4 hover:bg-[#8B0000] shadow-2xl transition-all"
-        style={{ right: isChatOpen ? '320px' : '0' }}
-      >
-        <span className="[writing-mode:vertical-lr] text-xs font-black tracking-[0.4em] uppercase">{isChatOpen ? 'CLOSE' : 'CHATBOX'}</span>
-      </button>
-
-      <AnimatePresence>
-        {isChatOpen && (
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            className="fixed right-0 top-1/2 -translate-y-1/2 w-[320px] h-[50vh] max-h-[450px] z-30 bg-[#121212] shadow-2xl rounded-l-3xl overflow-hidden border-l-4 border-[#B21E35]"
-          >
-            <div className="flex items-center justify-between p-4 bg-[#B21E35]">
-              <h3 className="text-white font-black uppercase text-xs tracking-widest">Global Chat</h3>
-              <button onClick={() => setIsChatOpen(false)}><X className="w-5 h-5 text-white" /></button>
-            </div>
-            <div className="w-full h-[calc(100%-52px)]"><ChatangoWidget /></div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isPlayerOpen && (
-          <motion.div
-            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-            className="fixed bottom-0 left-0 w-full z-50 px-4 pb-4"
-          >
-            <div className="max-w-5xl mx-auto relative">
-              <button 
-                onClick={() => setIsPlayerOpen(false)}
-                className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#B21E35] text-white px-10 py-2 rounded-t-3xl text-[10px] font-black uppercase tracking-widest"
-              >
-                CLOSE PLAYER <ChevronDown className="w-4 h-4 inline ml-2" />
-              </button>
-              <div className="bg-[#B21E35] rounded-full p-4 md:px-10 md:py-6 shadow-2xl flex items-center gap-8 border border-white/20">
-                <div className="hidden md:block flex-1">
-                  <p className="text-white/60 text-[10px] uppercase font-black tracking-widest">NOW ON AIR</p>
-                  <p className="text-white font-display text-lg font-bold truncate">Radio PPI Dunia Stream</p>
-                </div>
-                <div className="flex items-center gap-8 mx-auto md:mx-0">
-                  <SkipBack className="w-8 h-8 text-black/40 cursor-pointer" />
-                  <button onClick={togglePlay} className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
-                    {isPlaying ? <Pause className="w-8 h-8 text-[#B21E35] fill-[#B21E35]" /> : <Play className="w-8 h-8 text-[#B21E35] fill-[#B21E35] ml-1" />}
-                  </button>
-                  <SkipForward className="w-8 h-8 text-black/40 cursor-pointer" />
-                </div>
-                <div className="hidden md:flex flex-1 items-center gap-6">
-                  <div className="flex-1 h-2 bg-black/20 rounded-full relative overflow-hidden">
-                    <motion.div animate={isPlaying ? { x: ["-100%", "100%"] } : {}} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className="absolute inset-0 bg-white" />
-                  </div>
-                  <Airplay className={`w-6 h-6 text-white ${isPlaying ? 'animate-pulse' : ''}`} />
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -574,22 +630,4 @@ function SocialItem({ icon, count, label }: { icon: string, count: string, label
       </div>
     </div>
   );
-}
-
-function ChatangoWidget() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const script = document.createElement("script");
-    script.id = "chatango-script";
-    script.src = "https://st.chatango.com/js/gz/emb.js";
-    script.async = true;
-    script.style.width = "100%";
-    script.style.height = "100%";
-    const config = { handle: "radioppiduniachat", arch: "js", styles: { a: "#B21E35", b: 100, c: "FFFFFF", d: "FFFFFF", k: "B21E35", l: "B21E35", m: "B21E35", n: "FFFFFF", q: "B21E35", r: 100, p: 10, cnrs: 0.5, usricon: 1 } };
-    script.innerHTML = JSON.stringify(config);
-    containerRef.current.appendChild(script);
-    return () => { script.remove(); };
-  }, []);
-  return <div ref={containerRef} className="w-full h-full" />;
 }

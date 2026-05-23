@@ -45,6 +45,20 @@ export default function AdminDashboard() {
         router.push("/admin/login");
         return;
       }
+
+      const { data: adminRows, error: adminError } = await supabase
+        .from("admin_users")
+        .select("id")
+        .eq("user_id", session.user.id)
+        .eq("is_active", true)
+        .limit(1);
+
+      if (adminError || !adminRows || adminRows.length === 0) {
+        await supabase.auth.signOut();
+        router.push("/admin/login");
+        return;
+      }
+
       setUser(session.user);
       setLoading(false);
     };
@@ -369,6 +383,11 @@ function SettingsManager() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
+  const requiredSettings = [
+    { key: "what_is_on_tagline", label: "What Is On Section Tagline", multiline: true },
+    { key: "what_is_on_date", label: "What Is On Section Date", multiline: false },
+  ];
+
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -380,7 +399,17 @@ function SettingsManager() {
   };
 
   const handleSave = async (key: string) => {
-    await supabase.from("site_settings").update({ value: editValue }).eq("key", key);
+    const { data: existing } = await supabase
+      .from("site_settings")
+      .select("id")
+      .eq("key", key)
+      .maybeSingle();
+
+    if (existing?.id) {
+      await supabase.from("site_settings").update({ value: editValue }).eq("id", existing.id);
+    } else {
+      await supabase.from("site_settings").insert({ key, value: editValue });
+    }
     setEditingKey(null);
     fetchSettings();
   };
@@ -395,27 +424,63 @@ function SettingsManager() {
     what_is_on_date: "What Is On Section Date",
   };
 
+  const mergedSettings = [
+    ...requiredSettings.map((required) => {
+      const existing = settings.find((setting) => setting.key === required.key);
+      return existing || { id: 0, key: required.key, value: "", updated_at: "" };
+    }),
+    ...settings.filter(
+      (setting) => !requiredSettings.some((required) => required.key === setting.key)
+    ),
+  ];
+
   if (loading) return <LoadingState />;
 
   return (
     <div className="space-y-4">
-      {settings.map((setting) => (
-        <div key={setting.key} className="bg-[#121212] rounded-2xl p-6 border border-white/5">
-          <label className="block text-white/60 text-sm mb-2">{settingLabels[setting.key] || setting.key}</label>
-          {editingKey === setting.key ? (
-            <div className="flex gap-2">
-              <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#B21E35]" />
-              <Button onClick={() => handleSave(setting.key)} className="bg-[#B21E35] hover:bg-[#8B0000] text-white"><Save className="w-4 h-4" /></Button>
-              <Button onClick={() => setEditingKey(null)} variant="outline" className="border-white/10 text-white hover:bg-white/5"><X className="w-4 h-4" /></Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4">
-              <p className="flex-1 text-white">{setting.value || "-"}</p>
-              <button onClick={() => { setEditingKey(setting.key); setEditValue(setting.value || ""); }} className="p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-            </div>
-          )}
-        </div>
-      ))}
+      {mergedSettings.map((setting) => {
+        const meta = requiredSettings.find((required) => required.key === setting.key);
+        const label = meta ? meta.label : settingLabels[setting.key] || setting.key;
+        const multiline = meta?.multiline || false;
+
+        return (
+          <div key={setting.key} className="bg-[#121212] rounded-2xl p-6 border border-white/5">
+            <label className="block text-white/60 text-sm mb-2">{label}</label>
+            {editingKey === setting.key ? (
+              <div className="flex gap-2">
+                {multiline ? (
+                  <textarea
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    rows={4}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#B21E35] resize-y"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#B21E35]"
+                  />
+                )}
+                <Button onClick={() => handleSave(setting.key)} className="bg-[#B21E35] hover:bg-[#8B0000] text-white">
+                  <Save className="w-4 h-4" />
+                </Button>
+                <Button onClick={() => setEditingKey(null)} variant="outline" className="border-white/10 text-white hover:bg-white/5">
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <p className="flex-1 text-white">{setting.value || "-"}</p>
+                <button onClick={() => { setEditingKey(setting.key); setEditValue(setting.value || ""); }} className="p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg">
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
