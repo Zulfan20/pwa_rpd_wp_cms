@@ -10,6 +10,8 @@ export default function ListenNowPlayer() {
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [streamAvailable, setStreamAvailable] = useState<boolean | null>(null);
+  const [probing, setProbing] = useState(false);
 
   useEffect(() => {
     if (pathname?.startsWith("/admin")) {
@@ -18,9 +20,9 @@ export default function ListenNowPlayer() {
   }, [pathname]);
 
   useEffect(() => {
-    const streamUrl = "/api/stream";
+    // Initialize audio element without src to avoid early network requests
     if (!audioRef.current) {
-      audioRef.current = new Audio(streamUrl);
+      audioRef.current = new Audio();
       audioRef.current.preload = "none";
       audioRef.current.crossOrigin = "anonymous";
     }
@@ -31,7 +33,13 @@ export default function ListenNowPlayer() {
     const handleError = (e: Event) => {
       console.error("Audio playback error:", e);
       setIsPlaying(false);
-      audio?.load();
+      try {
+        audio?.pause();
+        audio!.src = "";
+        audio?.load();
+      } catch (err) {
+        console.error("Error resetting audio after playback error:", err);
+      }
     };
 
     audio.addEventListener("play", handlePlay);
@@ -42,13 +50,68 @@ export default function ListenNowPlayer() {
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
       audio.removeEventListener("error", handleError);
+      try {
+        audio.pause();
+        audio.src = "";
+      } catch (err) {
+        /* ignore */
+      }
     };
   }, []);
+
+  // Probe the proxy endpoint once on mount so we can give quick feedback
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const probe = async () => {
+      try {
+        const res = await fetch(`/api/stream?t=${Date.now()}`, { method: "GET", signal: controller.signal });
+        if (!cancelled) setStreamAvailable(res.ok);
+        // try to cancel any streaming body quickly
+        try {
+          (res.body as any)?.cancel?.();
+        } catch (e) {
+          // ignore
+        }
+      } catch (e) {
+        if (!cancelled) setStreamAvailable(false);
+      }
+    };
+
+    probe();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, []);
+
+  const probeNow = async () => {
+    setProbing(true);
+    try {
+      const res = await fetch(`/api/stream?t=${Date.now()}`, { method: "GET" });
+      setStreamAvailable(res.ok);
+      try {
+        (res.body as any)?.cancel?.();
+      } catch (e) {
+        // ignore
+      }
+    } catch (e) {
+      setStreamAvailable(false);
+    } finally {
+      setProbing(false);
+    }
+  };
 
   const togglePlay = async () => {
     if (!audioRef.current) return;
 
     try {
+      if (streamAvailable === false) {
+        alert("Stream currently unavailable. Try again or contact the stream provider.");
+        return;
+      }
       if (isPlaying) {
         audioRef.current.pause();
       } else {
@@ -60,9 +123,7 @@ export default function ListenNowPlayer() {
     }
   };
 
-  if (pathname?.startsWith("/admin")) {
-    return null;
-  }
+  if (pathname?.startsWith("/admin")) return null;
 
   return (
     <>
@@ -108,9 +169,21 @@ export default function ListenNowPlayer() {
                 </div>
                 <div className="flex items-center gap-8 mx-auto md:mx-0">
                   <SkipBack className="w-8 h-8 text-black/40 cursor-pointer" />
-                  <button onClick={togglePlay} className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
-                    {isPlaying ? <Pause className="w-8 h-8 text-[#B21E35] fill-[#B21E35]" /> : <Play className="w-8 h-8 text-[#B21E35] fill-[#B21E35] ml-1" />}
-                  </button>
+                  <div className="flex flex-col items-center gap-2">
+                    <button onClick={togglePlay} className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
+                      {isPlaying ? <Pause className="w-8 h-8 text-[#B21E35] fill-[#B21E35]" /> : <Play className="w-8 h-8 text-[#B21E35] fill-[#B21E35] ml-1" />}
+                    </button>
+                    {streamAvailable === false ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-white/80">Stream unavailable</span>
+                        <button onClick={probeNow} disabled={probing} className="text-xs px-2 py-1 bg-white/10 rounded-md text-white hover:bg-white/20">
+                          {probing ? "Checking..." : "Retry"}
+                        </button>
+                      </div>
+                    ) : streamAvailable === null ? (
+                      <span className="text-xs text-white/80 mt-1">Checking...</span>
+                    ) : null}
+                  </div>
                   <SkipForward className="w-8 h-8 text-black/40 cursor-pointer" />
                 </div>
                 <div className="hidden md:flex flex-1 items-center gap-6">

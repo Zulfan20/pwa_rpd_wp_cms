@@ -332,7 +332,7 @@ export default function Home() {
             className="bg-[#B21E35] rounded-[40px] md:rounded-[60px] p-6 md:p-10 flex items-center justify-around w-full max-w-2xl shadow-2xl"
           >
             <NavItem icon={<SlidersHorizontal className="w-8 h-8 md:w-12 md:h-12" />} label="PROGRAM" />
-            <NavItem icon={<Cookie className="w-8 h-8 md:w-12 md:h-12" />} label="1SHARASATRA" />
+            <NavItem icon={<Cookie className="w-8 h-8 md:w-12 md:h-12" />} label="HUT RPD" />
             <NavItem icon={<Mic2 className="w-8 h-8 md:w-12 md:h-12" />} label="PODCAST" />
           </motion.div>
         </div>

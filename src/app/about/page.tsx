@@ -2,12 +2,12 @@
 
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { Instagram, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import type { Member } from "@/lib/supabase";
+import type { Member, PosterSlide } from "@/lib/supabase";
 
 // Directorate configuration
 const directorates = [
@@ -18,6 +18,14 @@ const directorates = [
   { key: 'komunikasi', label: 'Komunikasi', icon: 'message', divisions: ['Public Relation', 'Community Relations', 'Research'] },
   { key: 'marketing', label: 'Marketing', icon: 'trending', divisions: ['Social Media', 'Sales & Partnership'] },
   { key: 'produksi', label: 'Produksi', icon: 'image', divisions: ['Visual Design', 'Audio', 'Video', 'Event'] },
+];
+
+const fallbackAboutBackgrounds = [
+  "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=2000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=2000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?q=80&w=2000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?q=80&w=2000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?q=80&w=2000&auto=format&fit=crop",
 ];
 
 // Icon components
@@ -83,6 +91,7 @@ function DirectorateIcon({ type }: { type: string }) {
 // Member card component for popup
 function MemberCard({ member }: { member: Member }) {
   const photoUrl = member.photo_url || member.image_url || null;
+  const instagramUrl = member.instagram_url || member.social_links?.instagram || null;
   
   return (
     <div className="bg-[#6B1028] rounded-2xl overflow-hidden flex-shrink-0 w-40 h-52 md:w-44 md:h-56">
@@ -94,9 +103,21 @@ function MemberCard({ member }: { member: Member }) {
             fill
             className="object-cover"
           />
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent p-3">
             <p className="text-white font-bold text-xs truncate">{member.name}</p>
             <p className="text-white/70 text-[10px] truncate">{member.position || member.role}</p>
+            {member.bio && <p className="mt-1 text-white/55 text-[10px] line-clamp-2">{member.bio}</p>}
+            {instagramUrl && (
+              <a
+                href={instagramUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white hover:text-[#B21E35] transition-colors"
+                aria-label={`${member.name} Instagram`}
+              >
+                <Instagram className="h-4 w-4" />
+              </a>
+            )}
           </div>
         </div>
       ) : (
@@ -109,6 +130,18 @@ function MemberCard({ member }: { member: Member }) {
           </div>
           <p className="text-white font-bold text-xs text-center">{member.name}</p>
           <p className="text-white/70 text-[10px] text-center">{member.position || member.role}</p>
+          {member.bio && <p className="mt-2 text-white/55 text-[10px] line-clamp-2 text-center">{member.bio}</p>}
+          {instagramUrl && (
+            <a
+              href={instagramUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white hover:text-[#B21E35] transition-colors"
+              aria-label={`${member.name} Instagram`}
+            >
+              <Instagram className="h-4 w-4" />
+            </a>
+          )}
         </div>
       )}
     </div>
@@ -120,14 +153,38 @@ export default function AboutPage() {
   const [activeDirectorate, setActiveDirectorate] = useState<string | null>(null);
   const [activeDivision, setActiveDivision] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [aboutBackgrounds, setAboutBackgrounds] = useState<string[]>([]);
+  const [activeBackgroundIndex, setActiveBackgroundIndex] = useState(0);
 
   useEffect(() => {
-    fetchMembers();
+    fetchPageData();
   }, []);
 
-  const fetchMembers = async () => {
-    const { data } = await supabase.from("members").select("*").order("created_at", { ascending: true });
-    setMembers(data || []);
+  useEffect(() => {
+    if (aboutBackgrounds.length <= 1) return;
+
+    const interval = window.setInterval(() => {
+      setActiveBackgroundIndex((prev) => (prev + 1) % aboutBackgrounds.length);
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [aboutBackgrounds.length]);
+
+  const fetchPageData = async () => {
+    const [membersRes, settingsRes] = await Promise.all([
+      supabase.from("members").select("*").order("created_at", { ascending: true }),
+      supabase
+        .from("poster_slides")
+        .select("title, image_url, sort_order")
+        .order("sort_order", { ascending: true }),
+    ]);
+
+    setMembers(membersRes.data || []);
+    const backgroundValues = (settingsRes.data || [])
+      .filter((slide: PosterSlide) => slide.title?.startsWith("About Background") && Boolean(slide.image_url))
+      .map((slide: PosterSlide) => slide.image_url);
+
+    setAboutBackgrounds(backgroundValues);
     setLoading(false);
   };
 
@@ -145,6 +202,8 @@ export default function AboutPage() {
       ? getMembersByDivision(activeDirectorate as string, activeDivision)
       : getMembersByDirectorate(activeDirectorate)
     : [];
+  const heroBackgrounds = aboutBackgrounds.length > 0 ? aboutBackgrounds : fallbackAboutBackgrounds;
+  const activeHeroBackground = heroBackgrounds[activeBackgroundIndex % heroBackgrounds.length];
 
   return (
     <div className="relative min-h-screen bg-black overflow-x-hidden">
@@ -152,13 +211,24 @@ export default function AboutPage() {
       <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
         {/* Background Image with Gradient Overlay */}
         <div className="absolute inset-0 z-0">
-          <Image
-            src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=2000&auto=format&fit=crop"
-            alt="About Us Background"
-            fill
-            className="object-cover opacity-60"
-            priority
-          />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeHeroBackground}
+              initial={{ opacity: 0, scale: 1.04, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 1.02, y: -12 }}
+              transition={{ duration: 0.8, ease: "easeInOut" }}
+              className="absolute inset-0"
+            >
+              <Image
+                src={activeHeroBackground}
+                alt="About Us Background"
+                fill
+                className="object-cover opacity-60"
+                priority
+              />
+            </motion.div>
+          </AnimatePresence>
           <div className="absolute inset-0 bg-gradient-to-r from-[#B21E35]/80 via-[#8B0000]/60 to-black/40" />
         </div>
 
@@ -454,6 +524,22 @@ export default function AboutPage() {
                             <p className="text-[#6f6f6f] text-sm font-semibold truncate">
                               {member.position || member.role || activeDir?.label || 'Member'}
                             </p>
+                            {member.bio && (
+                              <p className="mt-2 text-[#6f6f6f] text-xs line-clamp-2">
+                                {member.bio}
+                              </p>
+                            )}
+                            {(member.instagram_url || member.social_links?.instagram) && (
+                              <a
+                                href={member.instagram_url || member.social_links?.instagram || ""}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-3 inline-flex items-center gap-2 text-[#B91638] font-bold text-sm hover:opacity-80"
+                              >
+                                <Instagram className="w-4 h-4" />
+                                Instagram
+                              </a>
+                            )}
                           </div>
                         </div>
                       ))

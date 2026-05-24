@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
-import type { PosterSlide, ProgramBanner, MusicItem, SiteSetting, CenterPoster, Information, Member, Podcast } from "@/lib/supabase";
+import type { PosterSlide, ProgramBanner, MusicItem, SiteSetting, Member, Podcast } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,8 +13,6 @@ import {
   Image as ImageIcon,
   Music,
   Type,
-  FileImage,
-  Info,
   Users,
   LogOut,
   Plus,
@@ -25,13 +23,12 @@ import {
   Loader2,
   ChevronLeft,
   Menu,
-  Star,
   Headphones,
 } from "lucide-react";
 import Link from "next/link";
 import MediaUploader from "@/components/MediaUploader";
 
-type TabType = "slides" | "music" | "settings" | "program" | "poster" | "info" | "members" | "podcasts";
+type TabType = "slides" | "music" | "settings" | "program" | "members" | "podcasts";
 
 export default function AdminDashboard() {
   const [user, setUser] = useState<User | null>(null);
@@ -89,12 +86,10 @@ export default function AdminDashboard() {
   }
 
 const tabs = [
-      { id: "slides", label: "Poster Slides", icon: ImageIcon },
-      { id: "music", label: "Music List", icon: Music },
-      { id: "settings", label: "Site Settings", icon: Type },
+      { id: "slides", label: "Background about us", icon: ImageIcon },
+  { id: "music", label: "CLBK", icon: Music },
+      { id: "settings", label: "Tag Line & SSOTM", icon: Type },
       { id: "program", label: "Program Banners", icon: ImageIcon },
-      { id: "poster", label: "Center Poster", icon: FileImage },
-      { id: "info", label: "Information", icon: Info },
       { id: "members", label: "Members", icon: Users },
       { id: "podcasts", label: "Podcasts", icon: Headphones },
     ];
@@ -183,8 +178,6 @@ const tabs = [
             {activeTab === "music" && <MusicManager />}
             {activeTab === "settings" && <SettingsManager />}
             {activeTab === "program" && <ProgramBannersManager />}
-            {activeTab === "poster" && <PosterManager />}
-            {activeTab === "info" && <InfoManager />}
             {activeTab === "members" && <MembersManager />}
             {activeTab === "podcasts" && <PodcastsManager />}
           </main>
@@ -195,9 +188,18 @@ const tabs = [
 
 function SlidesManager() {
   const [slides, setSlides] = useState<PosterSlide[]>([]);
+  const [aboutBackgrounds, setAboutBackgrounds] = useState<PosterSlide[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ image_url: "", title: "", link: "" });
+
+  const aboutBackgroundDefinitions = [
+    { title: "About Background 1", sort_order: 1 },
+    { title: "About Background 2", sort_order: 2 },
+    { title: "About Background 3", sort_order: 3 },
+    { title: "About Background 4", sort_order: 4 },
+    { title: "About Background 5", sort_order: 5 },
+  ];
 
   useEffect(() => {
     fetchSlides();
@@ -205,7 +207,9 @@ function SlidesManager() {
 
   const fetchSlides = async () => {
     const { data } = await supabase.from("poster_slides").select("*").order("sort_order");
-    setSlides(data || []);
+    const allSlides = data || [];
+    setSlides(allSlides.filter((slide) => !slide.title?.startsWith("About Background")));
+    setAboutBackgrounds(allSlides.filter((slide) => slide.title?.startsWith("About Background")));
     setLoading(false);
   };
 
@@ -230,10 +234,55 @@ function SlidesManager() {
     setFormData({ image_url: slide.image_url, title: slide.title || "", link: slide.link || "" });
   };
 
+  const upsertAboutBackground = async (title: string, sort_order: number, image_url: string) => {
+    const { data: existing } = await supabase
+      .from("poster_slides")
+      .select("id")
+      .eq("title", title)
+      .maybeSingle();
+
+    const payload = { image_url, title, link: "", sort_order };
+
+    if (existing?.id) {
+      await supabase.from("poster_slides").update(payload).eq("id", existing.id);
+    } else {
+      await supabase.from("poster_slides").insert(payload);
+    }
+
+    fetchSlides();
+  };
+
   if (loading) return <LoadingState />;
 
   return (
     <div className="space-y-6">
+      <div className="bg-[#121212] rounded-2xl p-6 border border-white/5 space-y-4">
+        <div>
+          <h3 className="text-white font-bold mb-1">Background about us</h3>
+          <p className="text-white/40 text-sm">These 5 images rotate automatically on the About Us hero.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {aboutBackgroundDefinitions.map((definition, index) => {
+            const currentBackground = aboutBackgrounds.find((slide) => slide.title === definition.title);
+
+            return (
+              <div key={definition.title} className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
+                <div>
+                  <p className="text-white font-semibold">Background {index + 1}</p>
+                  <p className="text-white/35 text-xs">Stored in poster_slides as {definition.title}</p>
+                </div>
+                <MediaUploader
+                  initialUrl={currentBackground?.image_url}
+                  onUpload={(url) => {
+                    void upsertAboutBackground(definition.title, definition.sort_order, url);
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="bg-[#121212] rounded-2xl p-6 border border-white/5">
         <h3 className="text-white font-bold mb-4">{editingId ? "Edit Slide" : "Add New Slide"}</h3>
         <div className="grid gap-4">
@@ -302,7 +351,7 @@ function MusicManager() {
   const [music, setMusic] = useState<MusicItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ title: "", artist: "", image_url: "", spotify_url: "" });
+  const [formData, setFormData] = useState({ title: "", artist: "", image_url: "" });
 
   useEffect(() => {
     fetchMusic();
@@ -321,7 +370,7 @@ function MusicManager() {
       await supabase.from("music_list").insert(formData);
     }
     setEditingId(null);
-    setFormData({ title: "", artist: "", image_url: "", spotify_url: "" });
+    setFormData({ title: "", artist: "", image_url: "" });
     fetchMusic();
   };
 
@@ -332,7 +381,7 @@ function MusicManager() {
 
   const startEdit = (item: MusicItem) => {
     setEditingId(item.id);
-    setFormData({ title: item.title, artist: item.artist || "", image_url: item.image_url || "", spotify_url: item.spotify_url || "" });
+    setFormData({ title: item.title, artist: item.artist || "", image_url: item.image_url || "" });
   };
 
   if (loading) return <LoadingState />;
@@ -340,18 +389,20 @@ function MusicManager() {
   return (
     <div className="space-y-6">
       <div className="bg-[#121212] rounded-2xl p-6 border border-white/5">
-        <h3 className="text-white font-bold mb-4">{editingId ? "Edit Music" : "Add New Music"}</h3>
+        <h3 className="text-white font-bold mb-4">{editingId ? "Edit CLBK" : "Add New CLBK"}</h3>
         <div className="grid gap-4">
-          <input type="text" placeholder="Song Title" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
+          <input type="text" placeholder="CLBK Title" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
           <input type="text" placeholder="Artist" value={formData.artist} onChange={(e) => setFormData({ ...formData, artist: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
-          <input type="text" placeholder="Cover Image URL" value={formData.image_url} onChange={(e) => setFormData({ ...formData, image_url: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
-          <input type="text" placeholder="Spotify URL" value={formData.spotify_url} onChange={(e) => setFormData({ ...formData, spotify_url: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
+          <MediaUploader
+            initialUrl={formData.image_url}
+            onUpload={(url) => setFormData({ ...formData, image_url: url })}
+          />
           <div className="flex gap-2">
             <Button onClick={handleSave} className="bg-[#B21E35] hover:bg-[#8B0000] text-white">
-              <Save className="w-4 h-4 mr-2" /> {editingId ? "Update" : "Add"} Music
+              <Save className="w-4 h-4 mr-2" /> {editingId ? "Update" : "Add"} CLBK
             </Button>
             {editingId && (
-              <Button onClick={() => { setEditingId(null); setFormData({ title: "", artist: "", image_url: "", spotify_url: "" }); }} variant="outline" className="border-white/10 text-white hover:bg-white/5">
+              <Button onClick={() => { setEditingId(null); setFormData({ title: "", artist: "", image_url: "" }); }} variant="outline" className="border-white/10 text-white hover:bg-white/5">
                 <X className="w-4 h-4 mr-2" /> Cancel
               </Button>
             )}
@@ -360,8 +411,11 @@ function MusicManager() {
       </div>
 
       <div className="grid gap-4">
-        {music.map((item) => (
+        {music.map((item, index) => (
           <div key={item.id} className="bg-[#121212] rounded-2xl p-4 border border-white/5 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-[#B21E35] text-white font-black flex items-center justify-center text-sm flex-shrink-0">
+              {index + 1}
+            </div>
             <div className="w-16 h-16 bg-white/5 rounded-lg overflow-hidden flex items-center justify-center">
               {item.image_url ? <img src={item.image_url} alt="" className="w-full h-full object-cover" /> : <Music className="w-6 h-6 text-white/20" />}
             </div>
@@ -375,7 +429,7 @@ function MusicManager() {
             </div>
           </div>
         ))}
-        {music.length === 0 && <EmptyState message="No music added yet." />}
+        {music.length === 0 && <EmptyState message="No CLBK added yet." />}
       </div>
     </div>
   );
@@ -386,6 +440,13 @@ function SettingsManager() {
   const [loading, setLoading] = useState(true);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [featuredMember, setFeaturedMember] = useState<Member | null>(null);
+  const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [featuredForm, setFeaturedForm] = useState({
+    name: "",
+    country: "",
+    photo_url: "",
+  });
 
   const requiredSettings = [
     { key: "what_is_on_tagline", label: "What Is On Section Tagline", multiline: true },
@@ -394,12 +455,34 @@ function SettingsManager() {
 
   useEffect(() => {
     fetchSettings();
+    fetchFeaturedMember();
   }, []);
 
   const fetchSettings = async () => {
     const { data } = await supabase.from("site_settings").select("*");
     setSettings(data || []);
     setLoading(false);
+  };
+
+  const fetchFeaturedMember = async () => {
+    const { data } = await supabase
+      .from("members")
+      .select("*")
+      .eq("is_featured", true)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      setFeaturedMember(data);
+      setFeaturedForm({
+        name: data.name || "",
+        country: data.country || "",
+        photo_url: data.photo_url || data.image_url || "",
+      });
+    }
+
+    setFeaturedLoading(false);
   };
 
   const handleSave = async (key: string) => {
@@ -416,6 +499,40 @@ function SettingsManager() {
     }
     setEditingKey(null);
     fetchSettings();
+  };
+
+  const handleSaveFeaturedMember = async () => {
+    if (!featuredForm.name) {
+      alert("Name is required");
+      return;
+    }
+
+    await supabase.from("members").update({ is_featured: false }).eq("is_featured", true);
+
+    const payload = {
+      name: featuredForm.name,
+      country: featuredForm.country || null,
+      photo_url: featuredForm.photo_url || null,
+      image_url: featuredForm.photo_url || null,
+      position: featuredMember?.position || null,
+      division: featuredMember?.division || null,
+      directorate: featuredMember?.directorate || "technology",
+      member_type: featuredMember?.member_type || null,
+      role: featuredMember?.role || null,
+      quote: featuredMember?.quote || null,
+      social_links: featuredMember?.social_links || null,
+      is_featured: true,
+      is_active: true,
+      sort_order: featuredMember?.sort_order || 0,
+    };
+
+    if (featuredMember?.id) {
+      await supabase.from("members").update(payload).eq("id", featuredMember.id);
+    } else {
+      await supabase.from("members").insert(payload);
+    }
+
+    fetchFeaturedMember();
   };
 
   const settingLabels: Record<string, string> = {
@@ -438,10 +555,54 @@ function SettingsManager() {
     ),
   ];
 
-  if (loading) return <LoadingState />;
+  if (loading || featuredLoading) return <LoadingState />;
 
   return (
     <div className="space-y-4">
+      <div className="pb-2">
+        <h2 className="text-white text-2xl font-black">Tag Line & SSOTM</h2>
+      </div>
+      <div className="bg-[#121212] rounded-2xl p-6 border border-white/5">
+        <h3 className="text-white font-bold mb-1">Sobat Siar of the Month</h3>
+        <p className="text-white/40 text-sm mb-4">Manage the featured member shown on the homepage.</p>
+        <div className="grid gap-4 md:grid-cols-[160px_1fr] items-start">
+          <div className="w-40 h-40 rounded-2xl overflow-hidden bg-white/5 border border-white/10">
+            {featuredForm.photo_url ? (
+              <img src={featuredForm.photo_url} alt={featuredForm.name || "Sobat Siar"} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white/25 text-xs font-medium">No image</div>
+            )}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <input
+              type="text"
+              placeholder="Name"
+              value={featuredForm.name}
+              onChange={(e) => setFeaturedForm({ ...featuredForm, name: e.target.value })}
+              className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]"
+            />
+            <input
+              type="text"
+              placeholder="Country"
+              value={featuredForm.country}
+              onChange={(e) => setFeaturedForm({ ...featuredForm, country: e.target.value })}
+              className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]"
+            />
+            <div className="md:col-span-2">
+              <MediaUploader
+                initialUrl={featuredForm.photo_url}
+                onUpload={(url) => setFeaturedForm({ ...featuredForm, photo_url: url })}
+              />
+            </div>
+            <div className="md:col-span-2 flex gap-2">
+              <Button onClick={handleSaveFeaturedMember} className="bg-[#B21E35] hover:bg-[#8B0000] text-white">
+                <Save className="w-4 h-4 mr-2" /> Save SSOTM
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {mergedSettings.map((setting) => {
         const meta = requiredSettings.find((required) => required.key === setting.key);
         const label = meta ? meta.label : settingLabels[setting.key] || setting.key;
@@ -655,167 +816,6 @@ function ProgramBannersManager() {
   );
 }
 
-function PosterManager() {
-  const [posters, setPosters] = useState<CenterPoster[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ image_url: "", alt_text: "", link: "" });
-
-  useEffect(() => {
-    fetchPosters();
-  }, []);
-
-  const fetchPosters = async () => {
-    const { data } = await supabase.from("center_poster").select("*");
-    setPosters(data || []);
-    setLoading(false);
-  };
-
-  const handleSave = async () => {
-    if (editingId) {
-      await supabase.from("center_poster").update(formData).eq("id", editingId);
-    } else {
-      await supabase.from("center_poster").insert(formData);
-    }
-    setEditingId(null);
-    setFormData({ image_url: "", alt_text: "", link: "" });
-    fetchPosters();
-  };
-
-  const handleDelete = async (id: number) => {
-    await supabase.from("center_poster").delete().eq("id", id);
-    fetchPosters();
-  };
-
-  const startEdit = (poster: CenterPoster) => {
-    setEditingId(poster.id);
-    setFormData({ image_url: poster.image_url, alt_text: poster.alt_text || "", link: poster.link || "" });
-  };
-
-  if (loading) return <LoadingState />;
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-[#121212] rounded-2xl p-6 border border-white/5">
-        <h3 className="text-white font-bold mb-4">{editingId ? "Edit Poster" : "Add Center Poster"}</h3>
-        <div className="grid gap-4">
-          <input type="text" placeholder="Image URL" value={formData.image_url} onChange={(e) => setFormData({ ...formData, image_url: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
-          <input type="text" placeholder="Alt Text" value={formData.alt_text} onChange={(e) => setFormData({ ...formData, alt_text: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
-          <input type="text" placeholder="Link (optional)" value={formData.link} onChange={(e) => setFormData({ ...formData, link: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
-          <div className="flex gap-2">  
-            <Button onClick={handleSave} className="bg-[#B21E35] hover:bg-[#8B0000] text-white"><Save className="w-4 h-4 mr-2" /> {editingId ? "Update" : "Add"} Poster</Button>
-            {editingId && <Button onClick={() => { setEditingId(null); setFormData({ image_url: "", alt_text: "", link: "" }); }} variant="outline" className="border-white/10 text-white hover:bg-white/5"><X className="w-4 h-4 mr-2" /> Cancel</Button>}
-          </div>
-        </div>
-      </div>
-
-      {posters.length > 0 ? (
-        <Carousel opts={{ align: "start", loop: false }} className="relative w-full">
-          <CarouselContent className="-ml-2">
-            {posters.map((poster) => (
-              <CarouselItem key={poster.id} className="pl-2 basis-full sm:basis-1/2 lg:basis-1/3">
-                <div className="bg-[#121212] rounded-xl p-2 border border-white/5 flex h-full flex-col gap-2">
-                  <div className="relative aspect-square w-full overflow-hidden rounded-md bg-white/5">
-                    {poster.image_url && <img src={poster.image_url} alt="" className="w-full h-full object-cover" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-white text-sm font-medium truncate">{poster.alt_text || "Center Poster"}</p>
-                    <p className="text-white/35 text-[10px] truncate">{poster.image_url}</p>
-                  </div>
-                  <div className="flex items-center justify-end gap-1 flex-shrink-0">
-                    <button onClick={() => startEdit(poster)} className="p-1.5 text-white/60 hover:text-white hover:bg-white/5 rounded-md"><Edit2 className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => handleDelete(poster.id)} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                </div>
-              </CarouselItem>
-            ))}
-          </CarouselContent>
-          <CarouselPrevious className="left-2 top-1/2 -translate-y-1/2 border-white/15 bg-black/40 text-white backdrop-blur-md hover:bg-black/60" />
-          <CarouselNext className="right-2 top-1/2 -translate-y-1/2 border-white/15 bg-black/40 text-white backdrop-blur-md hover:bg-black/60" />
-        </Carousel>
-      ) : (
-        <EmptyState message="No center poster set." />
-      )}
-    </div>
-  );
-}
-
-function InfoManager() {
-  const [info, setInfo] = useState<Information[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ title: "", content: "", image_url: "" });
-
-  useEffect(() => {
-    fetchInfo();
-  }, []);
-
-  const fetchInfo = async () => {
-    const { data } = await supabase.from("information").select("*");
-    setInfo(data || []);
-    setLoading(false);
-  };
-
-  const handleSave = async () => {
-    if (editingId) {
-      await supabase.from("information").update(formData).eq("id", editingId);
-    } else {
-      await supabase.from("information").insert(formData);
-    }
-    setEditingId(null);
-    setFormData({ title: "", content: "", image_url: "" });
-    fetchInfo();
-  };
-
-  const handleDelete = async (id: number) => {
-    await supabase.from("information").delete().eq("id", id);
-    fetchInfo();
-  };
-
-  const startEdit = (item: Information) => {
-    setEditingId(item.id);
-    setFormData({ title: item.title, content: item.content || "", image_url: item.image_url || "" });
-  };
-
-  if (loading) return <LoadingState />;
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-[#121212] rounded-2xl p-6 border border-white/5">
-        <h3 className="text-white font-bold mb-4">{editingId ? "Edit Information" : "Add Information"}</h3>
-        <div className="grid gap-4">
-          <input type="text" placeholder="Title" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
-          <textarea placeholder="Content" value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })} rows={4} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35] resize-none" />
-          <input type="text" placeholder="Image URL (optional)" value={formData.image_url} onChange={(e) => setFormData({ ...formData, image_url: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" />
-          <div className="flex gap-2">
-            <Button onClick={handleSave} className="bg-[#B21E35] hover:bg-[#8B0000] text-white"><Save className="w-4 h-4 mr-2" /> {editingId ? "Update" : "Add"} Info</Button>
-            {editingId && <Button onClick={() => { setEditingId(null); setFormData({ title: "", content: "", image_url: "" }); }} variant="outline" className="border-white/10 text-white hover:bg-white/5"><X className="w-4 h-4 mr-2" /> Cancel</Button>}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-4">
-        {info.map((item) => (
-          <div key={item.id} className="bg-[#121212] rounded-2xl p-4 border border-white/5">
-            <div className="flex items-start gap-4">
-              {item.image_url && <div className="w-20 h-20 bg-white/5 rounded-lg overflow-hidden flex-shrink-0"><img src={item.image_url} alt="" className="w-full h-full object-cover" /></div>}
-              <div className="flex-1">
-                <p className="text-white font-medium">{item.title}</p>
-                <p className="text-white/40 text-sm mt-1 line-clamp-2">{item.content}</p>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => startEdit(item)} className="p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                <button onClick={() => handleDelete(item.id)} className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-              </div>
-            </div>
-          </div>
-        ))}
-        {info.length === 0 && <EmptyState message="No information entries yet." />}
-      </div>
-    </div>
-  );
-}
-
 const directorateOptions = [
   { value: 'bod', label: 'BOD (Board of Directors)' },
   { value: 'sobat_siar', label: 'Sobat Siar' },
@@ -834,8 +834,13 @@ const divisionsByDirectorate: Record<string, string[]> = {
   produksi: ['Visual Design', 'Audio', 'Video', 'Event'],
 };
 
+type MemberProfile = Member & {
+  bio: string | null;
+  instagram_url: string | null;
+};
+
 function MembersManager() {
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<MemberProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ 
@@ -843,8 +848,10 @@ function MembersManager() {
     position: "",
     directorate: "technology",
     division: "",
+    country: "",
     photo_url: "",
-    is_featured: false 
+    bio: "",
+    instagram_url: ""
   });
   const [filterDirectorate, setFilterDirectorate] = useState<string>("all");
 
@@ -853,7 +860,13 @@ function MembersManager() {
   }, []);
 
   const fetchMembers = async () => {
-    const { data } = await supabase.from("members").select("*").order("directorate").order("division").order("name");
+    const { data } = await supabase
+      .from("members")
+      .select("*")
+      .neq("is_featured", true)
+      .order("directorate")
+      .order("division")
+      .order("name");
     setMembers(data || []);
     setLoading(false);
   };
@@ -869,17 +882,25 @@ function MembersManager() {
       position: formData.position || null,
       directorate: formData.directorate,
       division: formData.division || null,
+      country: formData.country || null,
       photo_url: formData.photo_url || null,
-      is_featured: formData.is_featured,
+      bio: formData.bio || null,
+      instagram_url: formData.instagram_url || null,
+      is_featured: false,
+      is_active: true,
     };
     
-    if (editingId) {
-      await supabase.from("members").update(saveData).eq("id", editingId);
-    } else {
-      await supabase.from("members").insert(saveData);
+    const { error } = editingId
+      ? await supabase.from("members").update(saveData).eq("id", editingId)
+      : await supabase.from("members").insert(saveData);
+
+    if (error) {
+      alert(`Failed to save member: ${error.message}`);
+      return;
     }
+
     setEditingId(null);
-    setFormData({ name: "", position: "", directorate: "technology", division: "", photo_url: "", is_featured: false });
+    setFormData({ name: "", position: "", directorate: "technology", division: "", country: "", photo_url: "", bio: "", instagram_url: "" });
     fetchMembers();
   };
 
@@ -889,21 +910,18 @@ function MembersManager() {
     fetchMembers();
   };
 
-  const startEdit = (member: Member) => {
+  const startEdit = (member: MemberProfile) => {
     setEditingId(Number(member.id));
     setFormData({ 
       name: member.name, 
       position: member.position || "", 
       directorate: member.directorate || "technology",
       division: member.division || "",
+      country: member.country || "",
       photo_url: member.photo_url || member.image_url || "",
-      is_featured: member.is_featured 
+      bio: member.bio || "",
+      instagram_url: member.instagram_url || ""
     });
-  };
-
-  const toggleFeatured = async (member: Member) => {
-    await supabase.from("members").update({ is_featured: !member.is_featured }).eq("id", member.id);
-    fetchMembers();
   };
 
   const availableDivisions = formData.directorate ? divisionsByDirectorate[formData.directorate] || [] : [];
@@ -961,20 +979,30 @@ function MembersManager() {
           )}
           <input 
             type="text" 
-            placeholder="Photo URL" 
-            value={formData.photo_url} 
-            onChange={(e) => setFormData({ ...formData, photo_url: e.target.value })} 
+            placeholder="Country" 
+            value={formData.country} 
+            onChange={(e) => setFormData({ ...formData, country: e.target.value })} 
             className="md:col-span-2 w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" 
           />
-          <label className="md:col-span-2 flex items-center gap-3 cursor-pointer">
-            <input 
-              type="checkbox" 
-              checked={formData.is_featured} 
-              onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })} 
-              className="w-5 h-5 rounded border-white/10 bg-white/5 text-[#B21E35] focus:ring-[#B21E35]" 
+          <div className="md:col-span-2">
+            <MediaUploader
+              initialUrl={formData.photo_url}
+              onUpload={(url) => setFormData({ ...formData, photo_url: url })}
             />
-            <span className="text-white/70">Featured (Sobat Siar of the Month)</span>
-          </label>
+          </div>
+          <textarea
+            placeholder="Bio"
+            value={formData.bio}
+            onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+            className="md:col-span-2 min-h-[120px] w-full resize-y bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]"
+          />
+          <input
+            type="url"
+            placeholder="Instagram URL"
+            value={formData.instagram_url}
+            onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
+            className="md:col-span-2 w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]"
+          />
         </div>
         <div className="flex gap-2 mt-4">
           <Button onClick={handleSave} className="bg-[#B21E35] hover:bg-[#8B0000] text-white">
@@ -984,7 +1012,7 @@ function MembersManager() {
             <Button 
               onClick={() => { 
                 setEditingId(null); 
-                setFormData({ name: "", position: "", directorate: "technology", division: "", photo_url: "", is_featured: false }); 
+                setFormData({ name: "", position: "", directorate: "technology", division: "", country: "", photo_url: "", bio: "", instagram_url: "" }); 
               }} 
               variant="outline" 
               className="border-white/10 text-white hover:bg-white/5"
@@ -1039,9 +1067,9 @@ function MembersManager() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-white font-medium">{member.name}</p>
-                {member.is_featured && <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />}
               </div>
               <p className="text-white/60 text-sm">{member.position || "Member"}</p>
+              {member.bio && <p className="mt-1 text-white/45 text-sm line-clamp-2">{member.bio}</p>}
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-xs px-2 py-1 bg-[#B21E35]/20 text-[#B21E35] rounded">
                   {directorateOptions.find(d => d.value === member.directorate)?.label.split(' ')[0] || member.directorate}
@@ -1051,15 +1079,19 @@ function MembersManager() {
                     {member.division}
                   </span>
                 )}
+                {member.instagram_url && (
+                  <a
+                    href={member.instagram_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs px-2 py-1 bg-white/10 text-white/70 rounded hover:bg-white/15 hover:text-white transition-colors"
+                  >
+                    Instagram
+                  </a>
+                )}
               </div>
             </div>
             <div className="flex gap-2 flex-shrink-0">
-              <button 
-                onClick={() => toggleFeatured(member)} 
-                className={`p-2 rounded-lg ${member.is_featured ? "text-yellow-400 hover:bg-yellow-500/10" : "text-white/60 hover:text-white hover:bg-white/5"}`}
-              >
-                <Star className="w-4 h-4" />
-              </button>
               <button onClick={() => startEdit(member)} className="p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-lg">
                 <Edit2 className="w-4 h-4" />
               </button>
@@ -1092,10 +1124,7 @@ function EmptyState({ message }: { message: string }) {
 }
 
 const podcastCategories = [
-  { value: 'siaran_special_2025', label: 'Siaran Special 2025' },
-  { value: 'siaran_special_2024', label: 'Siaran Special 2024' },
-  { value: 'siaran_special_hut', label: 'Siaran Special HUT & Drama' },
-  { value: 'archived_2024', label: 'Archived Podcast 2024' },
+  { value: 'siaran_special_2025', label: 'Siaran Podcast Radio PPI Dunia' },
 ];
 
 function PodcastsManager() {
@@ -1107,12 +1136,59 @@ function PodcastsManager() {
     subtitle: "", 
     category: "siaran_special_2025", 
     audio_url: "", 
-    duration: "00:00:00" 
+    duration: "" 
   });
 
   useEffect(() => {
     fetchPodcasts();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAudioDuration = async () => {
+      if (!formData.audio_url) {
+        if (!cancelled) {
+          setFormData((current) => ({ ...current, duration: "" }));
+        }
+        return;
+      }
+
+      const audio = document.createElement("audio");
+      audio.preload = "metadata";
+      audio.src = formData.audio_url;
+
+      const cleanup = () => {
+        audio.removeAttribute("src");
+        audio.load();
+      };
+
+      audio.onloadedmetadata = () => {
+        if (!cancelled) {
+          const totalSeconds = Math.floor(audio.duration || 0);
+          const hours = Math.floor(totalSeconds / 3600);
+          const minutes = Math.floor((totalSeconds % 3600) / 60);
+          const seconds = totalSeconds % 60;
+          const duration = hours > 0
+            ? [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":")
+            : [minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
+
+          setFormData((current) => ({ ...current, duration }));
+        }
+        cleanup();
+      };
+
+      audio.onerror = () => {
+        cleanup();
+      };
+    };
+
+    loadAudioDuration();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.audio_url]);
 
   const fetchPodcasts = async () => {
     const { data } = await supabase.from("podcasts").select("*").order("created_at", { ascending: false });
@@ -1127,7 +1203,7 @@ function PodcastsManager() {
       await supabase.from("podcasts").insert(formData);
     }
     setEditingId(null);
-    setFormData({ title: "", subtitle: "", category: "siaran_special_2025", audio_url: "", duration: "00:00:00" });
+    setFormData({ title: "", subtitle: "", category: "siaran_special_2025", audio_url: "", duration: "" });
     fetchPodcasts();
   };
 
@@ -1143,7 +1219,7 @@ function PodcastsManager() {
       subtitle: podcast.subtitle || "", 
       category: podcast.category, 
       audio_url: podcast.audio_url || "", 
-      duration: podcast.duration || "00:00:00"
+      duration: podcast.duration || ""
     });
   };
 
@@ -1152,46 +1228,36 @@ function PodcastsManager() {
   return (
     <div className="space-y-6">
       <div className="bg-[#121212] rounded-2xl p-6 border border-white/5">
-        <h3 className="text-white font-bold mb-4">{editingId ? "Edit Podcast" : "Add New Podcast"}</h3>
+        <h3 className="text-white font-bold mb-4">{editingId ? "Edit Podcast" : "Add Podcast"}</h3>
         <div className="grid gap-4">
           <input 
             type="text" 
-            placeholder="Title (e.g., SSK Faiz - Mesir, SK Davina - Turki || SKSD)" 
+            placeholder="Title" 
             value={formData.title} 
             onChange={(e) => setFormData({ ...formData, title: e.target.value })} 
             className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" 
           />
           <input 
             type="text" 
-            placeholder="Subtitle (e.g., (Saling Kenal Saling Deket): Old But Gold)" 
+            placeholder="Subtitle" 
             value={formData.subtitle} 
             onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })} 
             className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" 
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <select 
-              value={formData.category} 
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })} 
-              className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-[#B21E35]"
-            >
-              {podcastCategories.map((cat) => (
-                <option key={cat.value} value={cat.value} className="bg-[#121212]">{cat.label}</option>
-              ))}
-            </select>
-            <input 
-              type="text" 
-              placeholder="Duration (e.g., 02:05:17)" 
-              value={formData.duration} 
-              onChange={(e) => setFormData({ ...formData, duration: e.target.value })} 
-              className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" 
-            />
+            <div className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white/70">
+              {podcastCategories[0].label}
+            </div>
+            <div className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white/50 text-sm">
+              Duration will be detected automatically from the uploaded audio.
+            </div>
           </div>
-          <input 
-            type="text" 
-            placeholder="Audio URL (e.g., https://example.com/audio.mp3)" 
-            value={formData.audio_url} 
-            onChange={(e) => setFormData({ ...formData, audio_url: e.target.value })} 
-            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#B21E35]" 
+          <MediaUploader
+            accept="audio/*"
+            folder="podcasts"
+            label={formData.audio_url ? "Replace audio" : "Upload audio"}
+            initialUrl={formData.audio_url || undefined}
+            onUpload={(url) => setFormData({ ...formData, audio_url: url })}
           />
           <div className="flex gap-2">
             <Button onClick={handleSave} className="bg-[#B21E35] hover:bg-[#8B0000] text-white">
@@ -1213,16 +1279,8 @@ function PodcastsManager() {
         </div>
       </div>
 
-      {/* Filter by category */}
-      <div className="flex flex-wrap gap-2">
-        {podcastCategories.map((cat) => {
-          const count = podcasts.filter(p => p.category === cat.value).length;
-          return (
-            <span key={cat.value} className="px-3 py-1 bg-white/5 rounded-full text-white/60 text-sm">
-              {cat.label} ({count})
-            </span>
-          );
-        })}
+      <div className="px-3 py-2 bg-white/5 rounded-full text-white/60 text-sm inline-flex w-fit">
+        {podcastCategories[0].label}
       </div>
 
       <div className="grid gap-4">
@@ -1237,7 +1295,7 @@ function PodcastsManager() {
                 <p className="text-white/40 text-sm truncate">{podcast.subtitle}</p>
                 <div className="flex items-center gap-3 mt-2">
                   <span className="text-xs px-2 py-1 bg-[#B21E35]/20 text-[#B21E35] rounded">
-                    {podcastCategories.find(c => c.value === podcast.category)?.label}
+                    {podcastCategories[0].label}
                   </span>
                   <span className="text-white/30 text-xs">{podcast.duration}</span>
                   {podcast.audio_url && <span className="text-green-400 text-xs">Audio attached</span>}

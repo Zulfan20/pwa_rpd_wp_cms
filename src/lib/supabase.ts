@@ -71,8 +71,10 @@ export type Member = {
   name: string
   role: string | null
   image_url: string | null
+  bio: string | null
   quote: string | null
   country: string | null
+  instagram_url: string | null
   social_links: Record<string, string> | null
   is_featured: boolean
   sort_order: number

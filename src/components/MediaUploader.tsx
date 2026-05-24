@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
   folder?: string;
   bucketName?: string;
   initialUrl?: string;
+  label?: string;
 };
 
 export default function MediaUploader({
@@ -17,14 +18,19 @@ export default function MediaUploader({
   folder = "program-banners",
   bucketName,
   initialUrl,
+  label,
 }: Props) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | undefined>(initialUrl);
+  const [previewKind, setPreviewKind] = useState<"image" | "audio">(accept.includes("audio") ? "audio" : "image");
+  const inputRef = useRef<HTMLInputElement>(null);
   const resolvedBucket = bucketName || process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "cms-images";
+  const isAudioMode = accept.includes("audio");
 
   const handleFile = async (file: File | null) => {
     if (!file) return;
     setUploading(true);
+    setPreviewKind(file.type.startsWith("audio/") ? "audio" : "image");
 
     try {
       const fileExt = file.name.split(".").pop();
@@ -71,18 +77,30 @@ export default function MediaUploader({
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <input
+          ref={inputRef}
           type="file"
           accept={accept}
           onChange={(e) => handleFile(e.target.files ? e.target.files[0] : null)}
-          className="text-white/60"
+          className="hidden"
         />
-        <span className="text-xs text-white/60">{uploading ? "Uploading..." : "Select an image to upload"}</span>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="inline-flex items-center rounded-xl bg-[#B21E35] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#8B0000] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {uploading ? "Uploading..." : label || (isAudioMode ? "Upload audio" : "Upload image")}
+        </button>
       </div>
       <p className="text-xs text-white/40">Bucket: {resolvedBucket}</p>
 
       {preview && (
-        <div className="w-40 h-40 bg-white/5 rounded-md overflow-hidden">
-          <img src={preview} alt="preview" className="w-full h-full object-cover" />
+        <div className="w-full max-w-xs bg-white/5 rounded-md overflow-hidden p-2">
+          {previewKind === "audio" ? (
+            <audio controls className="w-full" src={preview} />
+          ) : (
+            <img src={preview} alt="preview" className="w-full h-40 object-cover rounded-sm" />
+          )}
         </div>
       )}
     </div>
