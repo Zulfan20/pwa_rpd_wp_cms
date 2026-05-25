@@ -1,17 +1,22 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Airplay, ChevronDown, ChevronUp, Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { ChevronDown, ChevronUp, Pause, Play } from "lucide-react";
 import { usePathname } from "next/navigation";
+
+const DIRECT_STREAM_URL = "http://s1.voscast.com:8080/stream";
+const VOSCAST_PLAYER_IFRAME =
+  "https://cdn.voscast.com/player/player.php?host=s1.voscast.com&port=8080&mount=/live&autoplay=true&icecast=false";
 
 export default function ListenNowPlayer() {
   const pathname = usePathname();
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  const [playerMode, setPlayerMode] = useState<"stream" | "embed">("stream");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showFallbackPrompt, setShowFallbackPrompt] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [streamAvailable, setStreamAvailable] = useState<boolean | null>(null);
-  const [probing, setProbing] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   useEffect(() => {
     if (pathname?.startsWith("/admin")) {
@@ -20,7 +25,6 @@ export default function ListenNowPlayer() {
   }, [pathname]);
 
   useEffect(() => {
-    // Initialize audio element without src to avoid early network requests
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.preload = "none";
@@ -30,98 +34,90 @@ export default function ListenNowPlayer() {
     const audio = audioRef.current;
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
-    const handleError = (e: Event) => {
-      console.error("Audio playback error:", e);
+    const handleError = () => {
       setIsPlaying(false);
+      setPlayerMode("embed");
+      setShowFallbackPrompt(true);
+    };
+
+    const handleTimeUpdate = () => {
       try {
-        audio?.pause();
-        audio!.src = "";
-        audio?.load();
-      } catch (err) {
-        console.error("Error resetting audio after playback error:", err);
+        setCurrentTime(audio.currentTime || 0);
+      } catch {
+        setCurrentTime(0);
+      }
+    };
+
+    const handleLoaded = () => {
+      try {
+        setDuration(audio.duration || 0);
+      } catch {
+        setDuration(0);
       }
     };
 
     audio.addEventListener("play", handlePlay);
     audio.addEventListener("pause", handlePause);
     audio.addEventListener("error", handleError);
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("loadedmetadata", handleLoaded);
 
     return () => {
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
       audio.removeEventListener("error", handleError);
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("loadedmetadata", handleLoaded);
       try {
         audio.pause();
-        audio.src = "";
-      } catch (err) {
-        /* ignore */
-      }
-    };
-  }, []);
-
-  // Probe the proxy endpoint once on mount so we can give quick feedback
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-
-    const probe = async () => {
-      try {
-        const res = await fetch(`/api/stream?t=${Date.now()}`, { method: "GET", signal: controller.signal });
-        if (!cancelled) setStreamAvailable(res.ok);
-        // try to cancel any streaming body quickly
-        try {
-          (res.body as any)?.cancel?.();
-        } catch (e) {
-          // ignore
-        }
-      } catch (e) {
-        if (!cancelled) setStreamAvailable(false);
-      }
-    };
-
-    probe();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, []);
-
-  const probeNow = async () => {
-    setProbing(true);
-    try {
-      const res = await fetch(`/api/stream?t=${Date.now()}`, { method: "GET" });
-      setStreamAvailable(res.ok);
-      try {
-        (res.body as any)?.cancel?.();
-      } catch (e) {
+        audio.removeAttribute("src");
+        audio.load();
+      } catch {
         // ignore
       }
-    } catch (e) {
-      setStreamAvailable(false);
-    } finally {
-      setProbing(false);
-    }
-  };
+    };
+  }, []);
 
-  const togglePlay = async () => {
+  const playDirectStream = async () => {
     if (!audioRef.current) return;
 
     try {
-      if (streamAvailable === false) {
-        alert("Stream currently unavailable. Try again or contact the stream provider.");
-        return;
-      }
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.src = "/api/stream?t=" + Date.now();
-        await audioRef.current.play();
-      }
-    } catch (error) {
-      console.error("Playback failed:", error);
+      audioRef.current.src = DIRECT_STREAM_URL + `?t=${Date.now()}`;
+      await audioRef.current.play();
+      setPlayerMode("stream");
+      setShowFallbackPrompt(false);
+    } catch {
+      setPlayerMode("embed");
+      setShowFallbackPrompt(true);
     }
   };
+
+  const seek = (time: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = Math.max(0, Math.min((audioRef.current.duration || 0), time));
+  };
+
+  const formatTime = (s: number) => {
+    if (!isFinite(s) || s <= 0) return "0:00";
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60).toString().padStart(2, "0");
+    return `${m}:${sec}`;
+  };
+
+  const embedPlayer = (
+    <div className="flex items-center justify-center rounded-xl bg-black/15 px-4 py-4 overflow-hidden">
+      <iframe
+        title="VosCast HTML5 Player"
+        src={VOSCAST_PLAYER_IFRAME}
+        width="150"
+        height="30"
+        frameBorder="0"
+        scrolling="no"
+        allow="autoplay"
+        className="block"
+      />
+    </div>
+  );
 
   if (pathname?.startsWith("/admin")) return null;
 
@@ -158,45 +154,78 @@ export default function ListenNowPlayer() {
             <div className="max-w-5xl mx-auto relative">
               <button
                 onClick={() => setIsPlayerOpen(false)}
-                className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#B21E35] text-white px-10 py-2 rounded-t-3xl text-[10px] font-black uppercase tracking-widest"
+                className={`absolute -top-10 left-1/2 -translate-x-1/2 bg-[#B21E35] text-white px-10 py-2 rounded-t-3xl text-[10px] font-black uppercase tracking-widest ${playerMode === "embed" ? "hidden" : ""}`}
               >
                 CLOSE PLAYER <ChevronDown className="w-4 h-4 inline ml-2" />
               </button>
-              <div className="bg-[#B21E35] rounded-full p-4 md:px-10 md:py-6 shadow-2xl flex items-center gap-8 border border-white/20">
-                <div className="hidden md:block flex-1">
-                  <p className="text-white/60 text-[10px] uppercase font-black tracking-widest">NOW ON AIR</p>
-                  <p className="text-white font-display text-lg font-bold truncate">Radio PPI Dunia Stream</p>
-                </div>
-                <div className="flex items-center gap-8 mx-auto md:mx-0">
-                  <SkipBack className="w-8 h-8 text-black/40 cursor-pointer" />
-                  <div className="flex flex-col items-center gap-2">
-                    <button onClick={togglePlay} className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
-                      {isPlaying ? <Pause className="w-8 h-8 text-[#B21E35] fill-[#B21E35]" /> : <Play className="w-8 h-8 text-[#B21E35] fill-[#B21E35] ml-1" />}
-                    </button>
-                    {streamAvailable === false ? (
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-white/80">Stream unavailable</span>
-                        <button onClick={probeNow} disabled={probing} className="text-xs px-2 py-1 bg-white/10 rounded-md text-white hover:bg-white/20">
-                          {probing ? "Checking..." : "Retry"}
+
+              <div className={`relative shadow-2xl border border-white/20 ${playerMode === "embed" ? "mx-auto max-w-[360px] rounded-[26px] border-white/15 bg-gradient-to-br from-[#7f1524] via-[#a51c31] to-[#c11f39] p-3 md:p-4" : "bg-[#B21E35] rounded-[28px] p-4 md:px-8 md:py-6"}`}>
+                <div className={`flex flex-col ${playerMode === "embed" ? "gap-3" : "gap-4"}`}>
+                  {playerMode === "stream" ? (
+                    <div className="w-full flex flex-col items-center gap-4">
+                      <div className="flex items-center gap-6 justify-center">
+                        
+                        <button
+                          onClick={isPlaying ? () => audioRef.current?.pause() : playDirectStream}
+                          className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-xl"
+                          aria-label="Play/Pause"
+                        >
+                          {isPlaying ? (
+                            <Pause className="w-6 h-6 text-[#B21E35]" />
+                          ) : (
+                            <Play className="w-8 h-8 text-[#B21E35]" />
+                          )}
                         </button>
                       </div>
-                    ) : streamAvailable === null ? (
-                      <span className="text-xs text-white/80 mt-1">Checking...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-white/60 text-[10px] uppercase font-black tracking-widest">BACKUP PLAYER</p>
+                        <p className="text-white font-display text-lg font-bold truncate">Embedded radio player</p>
+                      </div>
+                      <button
+                        onClick={() => setIsPlayerOpen(false)}
+                        className="shrink-0 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-white/90 transition hover:bg-white/20"
+                        aria-label="Close backup player"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  )}
+
+                  {playerMode === "embed" ? (
+                    <div className="rounded-[22px] border border-white/15 bg-black/15 p-3 shadow-[0_12px_30px_rgba(0,0,0,0.18)]">
+                      <div className="flex flex-col items-center gap-3 rounded-[20px] bg-white/5 px-3 py-3">
+                        <div className="flex items-center gap-2 text-white/85">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
+                          </span>
+                          <span className="text-[10px] font-black uppercase tracking-[0.24em]">Backup Player</span>
+                        </div>
+                        <div className="flex items-center justify-center rounded-full bg-black/20 px-3 py-2 overflow-hidden shadow-inner">
+                          {embedPlayer}
+                        </div>
+                      </div>
+                    </div>
                     ) : null}
-                  </div>
-                  <SkipForward className="w-8 h-8 text-black/40 cursor-pointer" />
-                </div>
-                <div className="hidden md:flex flex-1 items-center gap-6">
-                  <div className="flex-1 h-2 bg-black/20 rounded-full relative overflow-hidden">
-                    <motion.div animate={isPlaying ? { x: ["-100%", "100%"] } : {}} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className="absolute inset-0 bg-white" />
-                  </div>
-                  <Airplay className={`w-6 h-6 text-white ${isPlaying ? "animate-pulse" : ""}`} />
+
+                
                 </div>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {playerMode === "embed" && !isPlayerOpen ? (
+        <div className="fixed left-0 top-0 -z-10 opacity-0 pointer-events-none" aria-hidden="true">
+          {embedPlayer}
+        </div>
+      ) : null}
+
+      <audio ref={audioRef} className="hidden" />
     </>
   );
 }
