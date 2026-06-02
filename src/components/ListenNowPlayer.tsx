@@ -1,7 +1,8 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, Pause, Play } from "lucide-react";
+import { ChevronDown, ChevronUp, Pause, Play, Rewind, FastForward } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const DIRECT_STREAM_URL = "http://s1.voscast.com:8080/stream";
@@ -162,20 +163,52 @@ export default function ListenNowPlayer() {
               <div className={`relative shadow-2xl border border-white/20 ${playerMode === "embed" ? "mx-auto max-w-[360px] rounded-[26px] border-white/15 bg-gradient-to-br from-[#7f1524] via-[#a51c31] to-[#c11f39] p-3 md:p-4" : "bg-[#B21E35] rounded-[28px] p-4 md:px-8 md:py-6"}`}>
                 <div className={`flex flex-col ${playerMode === "embed" ? "gap-3" : "gap-4"}`}>
                   {playerMode === "stream" ? (
-                    <div className="w-full flex flex-col items-center gap-4">
+                    <div className="w-full flex items-center justify-between gap-6">
+                      <div className="flex-1 min-w-0 pr-4">
+                        <p className="text-white/60 text-[10px] uppercase font-black tracking-widest">Playing Now</p>
+                        <p className="text-white font-display text-base font-bold leading-tight mt-1 line-clamp-2">$SK Faiz - Mesir, SK Davina - Turki, SK Wafi - Malaysia & SK Nadine - Turki || SKSD (Saling Kenal Saling Deket): Old But Gold</p>
+                      </div>
+
                       <div className="flex items-center gap-6 justify-center">
-                        
+                        <button
+                          onClick={() => seek((audioRef.current?.currentTime || 0) - 10)}
+                          className="w-12 h-12 rounded-full bg-black flex items-center justify-center shadow-md border border-white/10"
+                          aria-label="Rewind 10s"
+                        >
+                          <Rewind className="w-5 h-5 text-white" />
+                        </button>
+
                         <button
                           onClick={isPlaying ? () => audioRef.current?.pause() : playDirectStream}
-                          className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-xl"
+                          className="w-20 h-20 rounded-full bg-black flex items-center justify-center shadow-2xl border-2 border-white/10"
                           aria-label="Play/Pause"
                         >
                           {isPlaying ? (
-                            <Pause className="w-6 h-6 text-[#B21E35]" />
+                            <Pause className="w-8 h-8 text-white" />
                           ) : (
-                            <Play className="w-8 h-8 text-[#B21E35]" />
+                            <Play className="w-10 h-10 text-white" />
                           )}
                         </button>
+
+                        <button
+                          onClick={() => seek((audioRef.current?.currentTime || 0) + 10)}
+                          className="w-12 h-12 rounded-full bg-black flex items-center justify-center shadow-md border border-white/10"
+                          aria-label="Forward 10s"
+                        >
+                          <FastForward className="w-5 h-5 text-white" />
+                        </button>
+                      </div>
+
+                      <div className="flex-1 max-w-sm flex flex-col items-end gap-2 pl-4">
+                        <div className="text-white/90 text-sm font-mono">{formatTime(currentTime)}</div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={Math.max(1, duration)}
+                          value={currentTime}
+                          onChange={(e) => seek(Number(e.target.value))}
+                          className="w-full h-1 appearance-none bg-white/30 rounded-full accent-white"
+                        />
                       </div>
                     </div>
                   ) : (

@@ -255,30 +255,32 @@ export default function Home() {
           </svg>
         </div>
 
+        <div className="pointer-events-none absolute left-0 top-1/2 z-20 hidden -translate-y-1/2 md:block md:w-[52vw] lg:w-[46vw]">
+          <motion.div
+            initial={{ opacity: 0, x: -80, rotate: -8 }}
+            animate={{ opacity: 1, x: 0, rotate: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="relative flex justify-start"
+          >
+            <div className="relative z-10 ml-0 mt-[-32px] w-[66vw] max-w-[250px] aspect-[4/5] sm:mt-[-12px] sm:max-w-[320px] md:mt-0 md:w-full md:max-w-[620px]">
+              <Image
+                src="https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/render/image/public/project-uploads/18bad06e-616d-4a15-a836-96eb191d8378/mic2-1770060113358.png"
+                alt="Mic"
+                fill
+                className="object-contain drop-shadow-[0_30px_80px_rgba(0,0,0,0.9)]"
+                priority
+              />
+            </div>
+          </motion.div>
+        </div>
+
         <div className="relative z-20 mx-auto flex min-h-[100svh] max-w-7xl items-center px-5 pb-16 pt-16 md:items-start md:px-12 md:pb-28 md:pt-20">
           <div className="grid w-full items-start justify-items-center gap-8 md:grid-cols-[0.95fr_1.05fr] md:gap-8 md:justify-items-stretch">
-            <motion.div
-              initial={{ opacity: 0, x: -80, rotate: -8 }}
-              animate={{ opacity: 1, x: 0, rotate: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="relative order-1 hidden z-20 w-full justify-center md:order-1 md:flex md:justify-start md:-translate-y-14 lg:-translate-y-20"
-            >
-              <div className="relative z-10 mt-[-32px] w-[66vw] max-w-[250px] aspect-[4/5] sm:mt-[-12px] sm:max-w-[320px] md:mt-0 md:w-[100%] md:max-w-[620px]">
-                <Image
-                  src="https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/render/image/public/project-uploads/18bad06e-616d-4a15-a836-96eb191d8378/mic2-1770060113358.png"
-                  alt="Mic"
-                  fill
-                  className="object-contain drop-shadow-[0_30px_80px_rgba(0,0,0,0.9)]"
-                  priority
-                />
-              </div>
-            </motion.div>
-
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.15 }}
-              className="relative order-2 z-10 mt-0 w-full self-center md:order-2 md:mt-0 md:self-auto md:-translate-y-10 lg:-translate-y-14"
+              className="relative order-2 z-10 mt-0 w-full self-center md:order-2 md:mt-0 md:self-auto md:-translate-y-10 lg:-translate-y-14 md:col-start-2"
             >
               <div className="relative w-full max-w-[460px] overflow-hidden rounded-[28px] border border-white/10 bg-black/25 px-5 py-7 shadow-[0_30px_120px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:px-6 md:max-w-none md:rounded-[34px] md:px-10 md:py-14">
                 <div className="relative text-center md:text-right">
