@@ -6,8 +6,22 @@ import { Instagram, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-import type { Member, PosterSlide } from "@/lib/supabase";
+
+// Local Type Definitions (Replacing Supabase)
+type Member = {
+  id: string | number;
+  name: string;
+  directorate: string;
+  division?: string;
+  position?: string;
+  role?: string;
+  bio?: string;
+  photo_url?: string;
+  image_url?: string;
+  instagram_url?: string;
+  social_links?: { instagram?: string };
+};
+
 
 // Directorate configuration
 const directorates = [
@@ -170,23 +184,31 @@ export default function AboutPage() {
     return () => window.clearInterval(interval);
   }, [aboutBackgrounds.length]);
 
+  // --- UPDATED FETCH LOGIC: Pulling from WordPress ---
   const fetchPageData = async () => {
-    const [membersRes, settingsRes] = await Promise.all([
-      supabase.from("members").select("*").order("created_at", { ascending: true }),
-      supabase
-        .from("poster_slides")
-        .select("title, image_url, sort_order")
-        .order("sort_order", { ascending: true }),
-    ]);
-
-    setMembers(membersRes.data || []);
-    const backgroundValues = (settingsRes.data || [])
-      .filter((slide: PosterSlide) => slide.title?.startsWith("About Background") && Boolean(slide.image_url))
-      .map((slide: PosterSlide) => slide.image_url);
-
-    setAboutBackgrounds(backgroundValues);
+  try {
+    const timestamp = new Date().getTime();
+    const response = await fetch(`/api/about?t=${timestamp}`);
+    console.log('fetch status:', response.status);
+    const data = await response.json();
+    console.log('API data:', data);
+    
+    setMembers(data.members || []);
+    
+    if (data.aboutBackgrounds && data.aboutBackgrounds.length > 0) {
+      console.log('Setting backgrounds:', data.aboutBackgrounds);
+      setAboutBackgrounds(data.aboutBackgrounds);
+    } else {
+      console.log('No backgrounds from API, using fallback');
+      setAboutBackgrounds(fallbackAboutBackgrounds);
+    }
+  } catch (error) {
+    console.error("Fetch error:", error);
+    setAboutBackgrounds(fallbackAboutBackgrounds);
+  } finally {
     setLoading(false);
-  };
+  }
+};
 
   const getMembersByDirectorate = (directorate: string) => {
     return members.filter(m => m.directorate === directorate);

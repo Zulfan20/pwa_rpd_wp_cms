@@ -13,13 +13,31 @@ import {
   ChevronRight
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-import type { SiteSetting, Member, MusicItem } from "@/lib/supabase";
 
+// Local Type Definitions (Replacing Supabase Types)
 type HomeBanner = {
   image_url: string;
   alt: string;
+  section?: string;
 };
+
+type Member = {
+  name: string;
+  country?: string;
+  quote: string;
+  image_url: string;
+};
+
+type MusicItem = {
+  id: number;
+  title: string;
+  artist: string;
+  image_url: string | null;
+  spotify_url: string | null;
+};
+
+// Your official WordPress API endpoint
+const WP_API_URL = process.env.NEXT_PUBLIC_WP_API_URL;
 
 function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -116,53 +134,52 @@ export default function Home() {
   const [regularBannerIndex, setRegularBannerIndex] = useState(0);
   const [specialBannerIndex, setSpecialBannerIndex] = useState(0);
 
+  // WordPress Data Fetching Logic
   useEffect(() => {
-    const fetchCMSData = async () => {
-      const [settingsRes, memberRes, musicRes, bannersRes] = await Promise.all([
-        supabase.from("site_settings").select("*"),
-        supabase.from("members").select("*").eq("is_featured", true).eq("is_active", true).limit(1).single(),
-        supabase
-          .from("music_list")
-          .select("*")
-          .eq("is_active", true)
-          .order("sort_order", { ascending: true })
-          .limit(10),
-        supabase
-          .from("program_banners")
-          .select("section, image_url, is_active, sort_order")
-          .eq("is_active", true)
-          .order("section", { ascending: true })
-          .order("sort_order", { ascending: true }),
-      ]);
-      
-      if (settingsRes.data) {
-        const settingsMap: Record<string, string> = {};
-        settingsRes.data.forEach((s: SiteSetting) => {
-          settingsMap[s.key] = s.value || "";
-        });
-        setSettings(settingsMap);
-      }
-      if (memberRes.data) setFeaturedMember(memberRes.data);
-      if (musicRes.data) setClbkTracks(musicRes.data);
-      if (bannersRes.data) {
-        const groupedRegular = bannersRes.data
-          .filter((banner) => banner.section === "regular")
-          .map((banner) => ({
-            image_url: banner.image_url,
-            alt: "Siaran Reguler",
-          }));
-        const groupedSpecial = bannersRes.data
-          .filter((banner) => banner.section === "special")
-          .map((banner) => ({
-            image_url: banner.image_url,
-            alt: "Siaran Spesial",
-          }));
+    const fetchWPData = async () => {
+      try {
+        const timestamp = new Date().getTime();
+        
+          // NEW CODE
+    // Calls the scraper we just built in app/api/homepage/route.ts
+      const response = await fetch(`/api/homepage?t=${timestamp}`, {
+        cache: 'no-store' 
+      });
+        
+        if (!response.ok) throw new Error("Failed to fetch from WordPress");
+        
+        const data = await response.json();
+        
+        if (data.settings) {
+           setSettings(data.settings);
+        }
+        
+        if (data.featuredMember) {
+           setFeaturedMember(data.featuredMember);
+        }
+        
+        if (data.musicList) {
+           setClbkTracks(data.musicList);
+        }
+        
+        if (data.banners) {
+          const groupedRegular = data.banners
+            .filter((banner: HomeBanner) => banner.section === "regular")
+            .map((banner: HomeBanner) => ({ image_url: banner.image_url, alt: "Siaran Reguler" }));
+            
+          const groupedSpecial = data.banners
+            .filter((banner: HomeBanner) => banner.section === "special")
+            .map((banner: HomeBanner) => ({ image_url: banner.image_url, alt: "Siaran Spesial" }));
 
-        setRegularBanners(groupedRegular);
-        setSpecialBanners(groupedSpecial);
+          setRegularBanners(groupedRegular);
+          setSpecialBanners(groupedSpecial);
+        }
+      } catch (error) {
+        console.error("Error fetching WordPress data:", error);
       }
     };
-    fetchCMSData();
+
+    fetchWPData();
   }, []);
 
   useEffect(() => {
@@ -189,10 +206,6 @@ export default function Home() {
     artist: "Radio PPI Dunia",
     image_url: null,
     spotify_url: null,
-    sort_order: i + 1,
-    is_active: true,
-    created_at: "",
-    updated_at: "",
   }));
 
   const displayTracks = clbkTracks.length > 0 ? clbkTracks : fallbackTracks;
@@ -383,16 +396,22 @@ export default function Home() {
             >
               <p className="text-[#B21E35] italic text-lg md:text-xl font-medium">
                 {settings.what_is_on_tagline ? (
-                  settings.what_is_on_tagline.split('\n').map((line, i) => (
-                    <span key={i} className="block">{line}</span>
+                  /* Splits the text by newlines and inserts <br /> so Elementor's formatting is preserved */
+                  settings.what_is_on_tagline.split('\n').map((line, i, arr) => (
+                    <span key={i}>
+                      {line}
+                      {i < arr.length - 1 && <br />}
+                    </span>
                   ))
                 ) : (
+                  /* Fallback if the WordPress API is slow or fails */
                   <>
                     "Melangkah Menuju Awal Baru<br />
                     bersama Radio PPI Dunia"
                   </>
                 )}
               </p>
+              
               <span className="text-white font-black text-2xl md:text-4xl mt-4 block">
                 -{settings.what_is_on_date || "December 2025"}-
               </span>

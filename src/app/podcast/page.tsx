@@ -1,21 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
-import { supabase } from "@/lib/supabase";
-import type { Podcast } from "@/lib/supabase";
 
 function formatDuration(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "00:00";
-
   const roundedSeconds = Math.floor(totalSeconds);
   const hours = Math.floor(roundedSeconds / 3600);
   const minutes = Math.floor((roundedSeconds % 3600) / 60);
   const seconds = roundedSeconds % 60;
-
   if (hours > 0) {
     return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
   }
-
   return [minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
 }
 
@@ -42,7 +37,7 @@ function TrackItem({
   isPlaying,
   duration,
 }: {
-  track: Podcast;
+  track: any;
   onPlay: () => void;
   isPlaying: boolean;
   duration: string;
@@ -84,7 +79,7 @@ function TrackItem({
 }
 
 export default function PodcastPage() {
-  const [podcasts, setPodcasts] = useState<Podcast[]>([]);
+  const [podcasts, setPodcasts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingTrack, setPlayingTrack] = useState<string | null>(null);
   const [durations, setDurations] = useState<Record<string, string>>({});
@@ -92,9 +87,15 @@ export default function PodcastPage() {
 
   useEffect(() => {
     const fetchPodcasts = async () => {
-      const { data } = await supabase.from("podcasts").select("*").order("created_at", { ascending: false });
-      setPodcasts(data || []);
-      setLoading(false);
+      try {
+        const res = await fetch("/api/podcast");
+        const data = await res.json();
+        setPodcasts(data);
+      } catch (err) {
+        console.error("Failed to fetch podcasts:", err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchPodcasts();
@@ -125,7 +126,8 @@ export default function PodcastPage() {
   const siaranSpesial2025 = useMemo(
     () =>
       podcasts.filter((podcast) =>
-        podcast.category?.toLowerCase().includes("2025") || podcast.category?.toLowerCase().includes("siaran_special_2025")
+        podcast.category?.toLowerCase().includes("2025") ||
+        podcast.category?.toLowerCase().includes("siaran_special_2025")
       ),
     [podcasts]
   );

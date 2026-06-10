@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '**',
       },
+      { protocol: 'https', hostname: 'radioppidunia.org' },
       {
         protocol: 'http',
         hostname: '**',
