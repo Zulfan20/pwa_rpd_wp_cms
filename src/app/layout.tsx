@@ -9,16 +9,17 @@ import ListenNowPlayer from "@/components/ListenNowPlayer";
 import GlobalChatBox from "@/components/GlobalChatBox";
 
 export const metadata: Metadata = {
-  title: "RPD Mobile",
-  description: "RPD Mobile - Progressive Web App",
+  title: "Radio PPI Dunia",
+  description: "Radio PPI Dunia - Suara Anak Bangsa, Satu Cinta, Satu Indonesia",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "RPD Mobile",
+    title: "Radio PPI Dunia",
   },
   icons: {
-    apple: "/globe.svg",
+    icon: "/rpd-icon-192.png",
+    apple: "/rpd-icon-192.png"
   },
 };
 

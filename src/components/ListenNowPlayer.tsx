@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, Pause, Play, Rewind, FastForward } from "lucide-react";
 import { usePathname } from "next/navigation";
 
-const DIRECT_STREAM_URL = "http://s1.voscast.com:8080/stream";
+const DIRECT_STREAM_URL = "https://rpd-radio-proxy.mobileweb-rpd.workers.dev/";
 const VOSCAST_PLAYER_IFRAME =
   "https://cdn.voscast.com/player/player.php?host=s1.voscast.com&port=8080&mount=/live&autoplay=true&icecast=false";
 
