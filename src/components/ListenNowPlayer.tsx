@@ -51,7 +51,6 @@ export default function ListenNowPlayer() {
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.preload = "none";
-      audioRef.current.crossOrigin = "anonymous";
     }
 
     const audio = audioRef.current;
