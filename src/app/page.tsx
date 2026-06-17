@@ -552,14 +552,14 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={goToPreviousSpecialBanner}
-                              className="inline-flex h-7 w-7 md:h-9 md:w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow transition-transform hover:scale-105 hover:bg-white hover:text-[#B21E35] pointer-events-auto"
+                              className="inline-flex h-7 w-7 md:h-9 md:w-9 items-center justify-center rounded-full border border-[#B21E35]/15 bg-white text-[#B21E35] shadow transition-transform hover:scale-105 hover:bg-[#B21E35] hover:text-white pointer-events-auto" 
                             >
                               <ChevronLeft className="h-3 w-3 md:h-4 md:w-4" />
                             </button>
                             <button
                               type="button"
                               onClick={goToNextSpecialBanner}
-                              className="inline-flex h-7 w-7 md:h-9 md:w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow transition-transform hover:scale-105 hover:bg-white hover:text-[#B21E35] pointer-events-auto"
+                              className="inline-flex h-7 w-7 md:h-9 md:w-9 items-center justify-center rounded-full border border-[#B21E35]/15 bg-white text-[#B21E35] shadow transition-transform hover:scale-105 hover:bg-[#B21E35] hover:text-white pointer-events-auto"
                             >
                               <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
                             </button>
