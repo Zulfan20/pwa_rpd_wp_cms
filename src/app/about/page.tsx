@@ -7,7 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
-// Local Type Definitions (Replacing Supabase)
+// Local Type Definitions
 type Member = {
   id: string | number;
   name: string;
@@ -22,8 +22,7 @@ type Member = {
   social_links?: { instagram?: string };
 };
 
-
-// Directorate configuration
+// Directorate configuration matching API mapping
 const directorates = [
   { key: 'bod', label: 'BOD', icon: 'command' },
   { key: 'sobat_siar', label: 'Sobat Siar', icon: 'users' },
@@ -38,14 +37,11 @@ const fallbackAboutBackgrounds = [
   "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=2000&auto=format&fit=crop",
   "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=2000&auto=format&fit=crop",
   "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?q=80&w=2000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?q=80&w=2000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?q=80&w=2000&auto=format&fit=crop",
 ];
 
 // Icon components
 function DirectorateIcon({ type }: { type: string }) {
   const color = 'white';
-  
   switch (type) {
     case 'command':
       return (
@@ -102,7 +98,6 @@ function DirectorateIcon({ type }: { type: string }) {
   }
 }
 
-// Member card component for popup
 function MemberCard({ member }: { member: Member }) {
   const photoUrl = member.photo_url || member.image_url || null;
   const instagramUrl = member.instagram_url || member.social_links?.instagram || null;
@@ -166,49 +161,45 @@ export default function AboutPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [activeDirectorate, setActiveDirectorate] = useState<string | null>(null);
   const [activeDivision, setActiveDivision] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [aboutBackgrounds, setAboutBackgrounds] = useState<string[]>([]);
   const [activeBackgroundIndex, setActiveBackgroundIndex] = useState(0);
+  
+  // Master loading state
+  const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
+    const fetchPageData = async () => {
+      try {
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/about?t=${timestamp}`, { cache: 'no-store' });
+        const data = await response.json();
+        
+        setMembers(data.members || []);
+        
+        if (data.aboutBackgrounds && data.aboutBackgrounds.length > 0) {
+          setAboutBackgrounds(data.aboutBackgrounds);
+        } else {
+          setAboutBackgrounds(fallbackAboutBackgrounds);
+        }
+      } catch (error) {
+        console.error("Fetch error:", error);
+        setAboutBackgrounds(fallbackAboutBackgrounds);
+      } finally {
+        // Kill the loading state once the fetch resolves
+        setPageLoading(false);
+      }
+    };
+
     fetchPageData();
   }, []);
 
   useEffect(() => {
     if (aboutBackgrounds.length <= 1) return;
-
     const interval = window.setInterval(() => {
       setActiveBackgroundIndex((prev) => (prev + 1) % aboutBackgrounds.length);
     }, 3000);
-
     return () => window.clearInterval(interval);
   }, [aboutBackgrounds.length]);
-
-  // --- UPDATED FETCH LOGIC: Pulling from WordPress ---
-  const fetchPageData = async () => {
-  try {
-    const timestamp = new Date().getTime();
-    const response = await fetch(`/api/about?t=${timestamp}`);
-    console.log('fetch status:', response.status);
-    const data = await response.json();
-    console.log('API data:', data);
-    
-    setMembers(data.members || []);
-    
-    if (data.aboutBackgrounds && data.aboutBackgrounds.length > 0) {
-      console.log('Setting backgrounds:', data.aboutBackgrounds);
-      setAboutBackgrounds(data.aboutBackgrounds);
-    } else {
-      console.log('No backgrounds from API, using fallback');
-      setAboutBackgrounds(fallbackAboutBackgrounds);
-    }
-  } catch (error) {
-    console.error("Fetch error:", error);
-    setAboutBackgrounds(fallbackAboutBackgrounds);
-  } finally {
-    setLoading(false);
-  }
-};
 
   const getMembersByDirectorate = (directorate: string) => {
     return members.filter(m => m.directorate === directorate);
@@ -224,37 +215,40 @@ export default function AboutPage() {
       ? getMembersByDivision(activeDirectorate as string, activeDivision)
       : getMembersByDirectorate(activeDirectorate)
     : [];
-  const heroBackgrounds = aboutBackgrounds.length > 0 ? aboutBackgrounds : fallbackAboutBackgrounds;
-  const activeHeroBackground = heroBackgrounds[activeBackgroundIndex % heroBackgrounds.length];
+    
+  // Graceful fallback if index is out of bounds
+  const activeHeroBackground = aboutBackgrounds[activeBackgroundIndex % aboutBackgrounds.length] || null;
 
   return (
     <div className="relative min-h-screen bg-black overflow-x-hidden">
       {/* Hero Section */}
       <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
-        {/* Background Image with Gradient Overlay */}
-        <div className="absolute inset-0 z-0">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeHeroBackground}
-              initial={{ opacity: 0, scale: 1.04, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 1.02, y: -12 }}
-              transition={{ duration: 0.8, ease: "easeInOut" }}
-              className="absolute inset-0"
-            >
-              <Image
-                src={activeHeroBackground}
-                alt="About Us Background"
-                fill
-                className="object-cover opacity-60"
-                priority
-              />
-            </motion.div>
-          </AnimatePresence>
-          <div className="absolute inset-0 bg-gradient-to-r from-[#B21E35]/80 via-[#8B0000]/60 to-black/40" />
+        {/* Background Layer */}
+        <div className="absolute inset-0 z-0 bg-black">
+          {/* While loading, we hide the images completely so there is no fallback flash. The gradient below acts as the default background. */}
+          {!pageLoading && activeHeroBackground && (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeHeroBackground}
+                initial={{ opacity: 0, scale: 1.04, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 1.02, y: -12 }}
+                transition={{ duration: 0.8, ease: "easeInOut" }}
+                className="absolute inset-0"
+              >
+                <Image
+                  src={activeHeroBackground}
+                  alt="About Us Background"
+                  fill
+                  className="object-cover opacity-60"
+                  priority
+                />
+              </motion.div>
+            </AnimatePresence>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#B21E35]/80 via-[#8B0000]/60 to-black/40 pointer-events-none" />
         </div>
 
-        {/* Main Content */}
         <div className="relative z-10 flex flex-col items-center justify-center px-6 text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -279,20 +273,20 @@ export default function AboutPage() {
             transition={{ delay: 0.4, duration: 0.6 }}
             className="mt-12"
           >
-            <Button 
-              size="lg" 
-              className="bg-[#B21E35] hover:bg-[#8B0000] text-white px-12 py-8 rounded-full text-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-[0_10px_30px_rgba(178,30,53,0.4)]"
-            >
-              JOIN US
-            </Button>
+            <Link href="/join">
+              <Button 
+                size="lg" 
+                className="bg-[#B21E35] hover:bg-[#8B0000] text-white px-12 py-8 rounded-full text-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-[0_10px_30px_rgba(178,30,53,0.4)]"
+              >
+                JOIN US
+              </Button>
+            </Link>
           </motion.div>
         </div>
-
-        </section>
+      </section>
 
       {/* Second Section: Tentang Radio PPI Dunia */}
       <section className="relative py-32 px-6 bg-black min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Decorative Curved Lines Background */}
         <div className="absolute inset-0 pointer-events-none">
           <svg className="absolute top-0 right-0 w-full h-full text-[#B21E35] opacity-60" viewBox="0 0 1000 1000" preserveAspectRatio="none">
             <path d="M1000,0 Q800,200 900,400 T1000,800" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -303,7 +297,6 @@ export default function AboutPage() {
             <path d="M0,1000 Q200,800 100,600 T0,200" fill="none" stroke="currentColor" strokeWidth="2" />
             <path d="M0,950 Q150,750 50,550 T0,150" fill="none" stroke="currentColor" strokeWidth="2" />
           </svg>
-          {/* Broad red curves from the design */}
           <svg className="absolute inset-0 w-full h-full text-[#B21E35] opacity-40" viewBox="0 0 1440 800" preserveAspectRatio="none">
             <path d="M-100,600 C200,800 600,200 1540,400" fill="none" stroke="currentColor" strokeWidth="3" />
             <path d="M-100,650 C200,850 600,250 1540,450" fill="none" stroke="currentColor" strokeWidth="3" />
@@ -311,7 +304,6 @@ export default function AboutPage() {
         </div>
 
         <div className="max-w-6xl mx-auto relative z-10 w-full">
-          {/* Card Container */}
           <motion.div 
             initial={{ opacity: 0, y: 50 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -319,7 +311,6 @@ export default function AboutPage() {
             transition={{ duration: 0.8 }}
             className="relative bg-white rounded-[40px] md:rounded-[60px] p-8 md:p-16 shadow-[0_40px_100px_rgba(178,30,53,0.2)]"
           >
-            {/* Floating Badge Title */}
             <div className="absolute -top-6 left-10 md:left-20">
               <h2 className="text-[#B21E35] text-3xl md:text-5xl font-black italic whitespace-nowrap drop-shadow-[0_2px_0_#fff] paint-order-stroke stroke-white stroke-[8px]">
                 <span className="relative z-10">Tentang Radio PPI Dunia</span>
@@ -328,7 +319,6 @@ export default function AboutPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 mt-8">
-              {/* Left Column: Logo and History */}
               <div className="space-y-10">
                 <div className="flex flex-col items-center lg:items-start gap-6">
                     <div className="relative w-72 h-40 md:w-80 md:h-44">
@@ -345,7 +335,6 @@ export default function AboutPage() {
                 </div>
               </div>
 
-              {/* Right Column: Present Status and Growth */}
               <div className="flex flex-col justify-center space-y-8">
                 <div className="space-y-6">
                   <p className="text-gray-700 text-lg leading-relaxed">
@@ -366,15 +355,12 @@ export default function AboutPage() {
 
       {/* Third Section: Persebaran Anggota Radio PPI Dunia */}
       <section className="relative py-20 md:py-32 bg-[#1a1a1a] flex items-center overflow-hidden">
-        {/* Red curved lines background decoration */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          {/* Bottom left decorative lines */}
           <svg className="absolute bottom-0 left-0 w-full h-full text-[#B21E35]" viewBox="0 0 1440 800" preserveAspectRatio="none">
             <path d="M-50,700 Q100,750 150,650 Q200,550 400,600 Q700,700 1000,500 Q1200,350 1500,400" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.7" />
             <path d="M-50,750 Q100,800 150,700 Q200,600 400,650 Q700,750 1000,550 Q1200,400 1500,450" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.7" />
             <path d="M-50,800 Q100,850 150,750 Q200,650 400,700 Q700,800 1000,600 Q1200,450 1500,500" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.7" />
           </svg>
-          {/* Small loop decoration */}
           <svg className="absolute bottom-20 left-20 w-32 h-32 text-[#B21E35]" viewBox="0 0 100 100">
             <ellipse cx="50" cy="50" rx="30" ry="20" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.6" transform="rotate(-30 50 50)" />
           </svg>
@@ -382,7 +368,6 @@ export default function AboutPage() {
 
         <div className="max-w-7xl mx-auto px-6 relative z-10 w-full">
           <div className="flex flex-col lg:flex-row items-start gap-8 lg:gap-12">
-            {/* Left: Title Card */}
             <motion.div
               initial={{ opacity: 0, x: -50 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -405,7 +390,6 @@ export default function AboutPage() {
               </div>
             </motion.div>
 
-            {/* Right: Map Card */}
             <motion.div
               initial={{ opacity: 0, x: 50 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -426,7 +410,6 @@ export default function AboutPage() {
             </motion.div>
           </div>
 
-          {/* Be part of US button */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -446,30 +429,37 @@ export default function AboutPage() {
         </div>
       </section>
 
-        {/* Fourth Section: Our Team Members */}
-        <section className="relative py-20 md:py-32 bg-[#0f0f0f] overflow-hidden">
-          {/* Decorative red lines on the right */}
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none">
-            <svg className="w-64 h-96 text-[#B21E35]" viewBox="0 0 200 400">
-              <path d="M200,50 Q100,100 150,200 Q200,300 100,350" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.7" />
-              <path d="M200,80 Q120,130 170,230 Q200,330 120,380" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.7" />
-            </svg>
-          </div>
+      {/* Fourth Section: Our Team Members */}
+      <section className="relative py-20 md:py-32 bg-[#0f0f0f] overflow-hidden">
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none">
+          <svg className="w-64 h-96 text-[#B21E35]" viewBox="0 0 200 400">
+            <path d="M200,50 Q100,100 150,200 Q200,300 100,350" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.7" />
+            <path d="M200,80 Q120,130 170,230 Q200,330 120,380" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.7" />
+          </svg>
+        </div>
 
-          <div className="max-w-7xl mx-auto px-6 relative z-10">
-            {/* Mobile layout */}
-            <div className="md:hidden mb-10">
-              <motion.h2
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
-                className="text-white text-4xl font-black italic text-center mb-6 leading-none"
-                style={{ fontFamily: 'Fredoka, sans-serif', textShadow: '0 4px 0 #fff' }}
-              >
-                Our Team Members
-              </motion.h2>
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          
+          {/* Mobile layout */}
+          <div className="md:hidden mb-10">
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="text-white text-4xl font-black italic text-center mb-6 leading-none"
+              style={{ fontFamily: 'Fredoka, sans-serif', textShadow: '0 4px 0 #fff' }}
+            >
+              Our Team Members
+            </motion.h2>
 
+            {/* FULL SECTION LOADER FOR MOBILE */}
+            {pageLoading ? (
+              <div className="w-full flex flex-col items-center justify-center min-h-[400px] bg-[#B91638]/10 rounded-[34px] border border-[#B91638]/30">
+                <div className="w-12 h-12 border-4 border-[#B91638]/30 border-t-[#B91638] rounded-full animate-spin mb-4" />
+                <span className="text-white/60 font-bold tracking-widest uppercase text-xs">Memuat Tim...</span>
+              </div>
+            ) : (
               <div className="flex items-stretch gap-4">
                 <div className="w-[84px] bg-[#B91638] rounded-[34px] py-6 px-0 flex flex-col items-center justify-between min-h-[560px] shadow-2xl">
                   {directorates.map((dir, index) => (
@@ -567,199 +557,185 @@ export default function AboutPage() {
                       ))
                     ) : (
                       <div className="rounded-[18px] bg-[#6B1028] min-h-[260px] flex items-center justify-center text-white/60 font-semibold">
-                        {activeDirectorate ? 'No members in this section' : 'Select a directorate'}
+                        {activeDirectorate ? 'Belum ada anggota' : 'Pilih direktorat'}
                       </div>
                     )}
                   </div>
+
                 </div>
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* Desktop layout */}
-            <div className="hidden md:block">
-              {/* Title */}
-              <motion.h2
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6 }}
-                className="text-white text-4xl md:text-6xl font-black italic text-center mb-10"
-                style={{ fontFamily: 'Fredoka, sans-serif' }}
-              >
-                Our Team Members
-              </motion.h2>
+          {/* Desktop layout */}
+          <div className="hidden md:block">
+            <motion.h2
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="text-white text-4xl md:text-6xl font-black italic text-center mb-10"
+              style={{ fontFamily: 'Fredoka, sans-serif' }}
+            >
+              Our Team Members
+            </motion.h2>
 
-              {/* Directorate Icons Bar */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: 0.2 }}
-                className="flex justify-center mb-8 relative"
-              >
-                <div className="bg-[#B91638] rounded-full px-6 py-3 flex items-center gap-2 md:gap-4">
-                  {directorates.map((dir, index) => (
-                    <div key={dir.key} className="flex items-center relative">
-                      <button
-                          onClick={() => {
-                            if (activeDirectorate === dir.key) {
-                              setActiveDirectorate(null);
-                              setActiveDivision(null);
-                            } else {
-                              setActiveDirectorate(dir.key);
-                              setActiveDivision(null);
-                            }
-                          }}
-                          className={`p-2 rounded-full transition-all ${
-                            activeDirectorate === dir.key 
-                              ? 'bg-white/20 scale-110' 
-                              : 'hover:bg-white/10'
-                          }`}
-                          title={dir.label}
+            {/* FULL SECTION LOADER FOR DESKTOP */}
+            {pageLoading ? (
+              <div className="w-full flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-16 h-16 border-4 border-[#B91638]/30 border-t-[#B91638] rounded-full animate-spin mb-4" />
+                <span className="text-white/60 font-bold tracking-widest uppercase text-sm animate-pulse">Memuat Data Tim...</span>
+              </div>
+            ) : (
+              <>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                  className="flex justify-center mb-8 relative"
+                >
+                  <div className="bg-[#B91638] rounded-full px-6 py-3 flex items-center gap-2 md:gap-4">
+                    {directorates.map((dir, index) => (
+                      <div key={dir.key} className="flex items-center relative">
+                        <button
+                            onClick={() => {
+                              if (activeDirectorate === dir.key) {
+                                setActiveDirectorate(null);
+                                setActiveDivision(null);
+                              } else {
+                                setActiveDirectorate(dir.key);
+                                setActiveDivision(null);
+                              }
+                            }}
+                            className={`p-2 rounded-full transition-all ${
+                              activeDirectorate === dir.key 
+                                ? 'bg-white/20 scale-110' 
+                                : 'hover:bg-white/10'
+                            }`}
+                            title={dir.label}
+                          >
+                          <DirectorateIcon type={dir.icon} />
+                        </button>
+                        {index < directorates.length - 1 && (
+                          <div className="w-px h-6 bg-white/30 mx-1 md:mx-2" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+
+                <AnimatePresence>
+                  {activeDirectorate && activeDir && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                      transition={{ duration: 0.3 }}
+                      className="relative"
+                    >
+                      <div 
+                        className="absolute -top-3 left-1/2 -translate-x-1/2 w-0 h-0"
+                        style={{
+                          borderLeft: '16px solid transparent',
+                          borderRight: '16px solid transparent',
+                          borderBottom: '16px solid #B91638',
+                        }}
+                      />
+                      
+                      <div className="bg-[#B91638] rounded-[30px] p-6 md:p-8 relative">
+                        <button 
+                          onClick={() => setActiveDirectorate(null)}
+                          className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-full transition-colors"
                         >
-                        <DirectorateIcon type={dir.icon} />
-                      </button>
-                      {index < directorates.length - 1 && (
-                        <div className="w-px h-6 bg-white/30 mx-1 md:mx-2" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
+                          <X className="w-5 h-5 text-white" />
+                        </button>
 
-              {/* Popup Modal for Team Content */}
-              <AnimatePresence>
-                {activeDirectorate && activeDir && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                    transition={{ duration: 0.3 }}
-                    className="relative"
-                  >
-                    {/* Triangle pointer */}
-                    <div 
-                      className="absolute -top-3 left-1/2 -translate-x-1/2 w-0 h-0"
-                      style={{
-                        borderLeft: '16px solid transparent',
-                        borderRight: '16px solid transparent',
-                        borderBottom: '16px solid #B91638',
-                      }}
-                    />
-                    
-                    {/* Main popup card */}
-                    <div className="bg-[#B91638] rounded-[30px] p-6 md:p-8 relative">
-                      {/* Close button */}
-                      <button 
-                        onClick={() => setActiveDirectorate(null)}
-                        className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-full transition-colors"
-                      >
-                        <X className="w-5 h-5 text-white" />
-                      </button>
+                        {activeDir.divisions ? (
+                          <div className="flex flex-wrap gap-0 mb-6">
+                            {activeDir.divisions.map((division, idx) => {
+                              const isActive = activeDivision === division;
+                              const isFirst = idx === 0;
+                              const isLast = idx === activeDir.divisions!.length - 1;
+                              return (
+                                <button 
+                                  key={division}
+                                  onClick={() => setActiveDivision(isActive ? null : division)}
+                                  className={`px-6 py-3 font-bold text-sm transition-all ${
+                                    isActive 
+                                      ? 'bg-white text-[#B91638]' 
+                                      : 'bg-[#6B1028] text-white hover:bg-[#5a0d22]'
+                                  } ${isFirst ? 'rounded-l-xl' : ''} ${isLast ? 'rounded-r-xl' : ''}`}
+                                >
+                                  {division}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="mb-6">
+                            <h3 className="text-white font-bold text-xl">{activeDir.label}</h3>
+                          </div>
+                        )}
 
-                      {loading ? (
-                        <div className="flex items-center justify-center py-16">
-                          <div className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-                        </div>
-                      ) : (
+                        {activeDir.divisions ? (
                           <>
-                            {/* Division Tabs - Only show for directorates with divisions */}
-                            {activeDir.divisions ? (
-                              <div className="flex flex-wrap gap-0 mb-6">
-                                {activeDir.divisions.map((division, idx) => {
-                                  const isActive = activeDivision === division;
-                                  const isFirst = idx === 0;
-                                  const isLast = idx === activeDir.divisions!.length - 1;
-                                  return (
-                                    <button 
-                                      key={division}
-                                      onClick={() => setActiveDivision(isActive ? null : division)}
-                                      className={`px-6 py-3 font-bold text-sm transition-all ${
-                                        isActive 
-                                          ? 'bg-white text-[#B91638]' 
-                                          : 'bg-[#6B1028] text-white hover:bg-[#5a0d22]'
-                                      } ${isFirst ? 'rounded-l-xl' : ''} ${isLast ? 'rounded-r-xl' : ''}`}
-                                    >
-                                      {division}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="mb-6">
-                                <h3 className="text-white font-bold text-xl">{activeDir.label}</h3>
-                              </div>
-                            )}
-
-                            {/* Members Grid with Horizontal Scroll */}
-                            {activeDir.divisions ? (
-                              <>
-                                {activeDivision ? (
-                                  /* Show only the selected division's members */
-                                  <div 
-                                    className="flex gap-4 overflow-x-auto pb-4"
-                                    style={{ scrollbarWidth: 'thin' }}
-                                  >
-                                    {getMembersByDivision(activeDirectorate, activeDivision).length > 0 ? (
-                                      getMembersByDivision(activeDirectorate, activeDivision).map((member) => (
-                                        <MemberCard key={member.id} member={member} />
-                                      ))
-                                    ) : (
-                                      <div className="w-full text-center py-10">
-                                        <div className="w-16 h-16 rounded-full bg-[#6B1028] flex items-center justify-center mx-auto mb-3">
-                                          <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-8 h-8 opacity-50">
-                                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                            <circle cx="12" cy="7" r="4" />
-                                          </svg>
-                                        </div>
-                                        <p className="text-white/50">No members in {activeDivision}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  /* No division selected - show instruction */
-                                  <div className="w-full text-center py-10">
-                                    <p className="text-white/60">Click on a division above to view members</p>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              /* For BOD and Sobat Siar - show all members in horizontal scroll */
-                              <div 
-                                className="flex gap-4 overflow-x-auto pb-4"
-                                style={{ scrollbarWidth: 'thin' }}
-                              >
-                                {getMembersByDirectorate(activeDirectorate).length > 0 ? (
-                                  getMembersByDirectorate(activeDirectorate).map((member) => (
+                            {activeDivision ? (
+                              <div className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: 'thin' }}>
+                                {getMembersByDivision(activeDirectorate, activeDivision).length > 0 ? (
+                                  getMembersByDivision(activeDirectorate, activeDivision).map((member) => (
                                     <MemberCard key={member.id} member={member} />
                                   ))
                                 ) : (
                                   <div className="w-full text-center py-10">
-                                    <p className="text-white/50">No members in this section</p>
+                                    <div className="w-16 h-16 rounded-full bg-[#6B1028] flex items-center justify-center mx-auto mb-3">
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-8 h-8 opacity-50">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                        <circle cx="12" cy="7" r="4" />
+                                      </svg>
+                                    </div>
+                                    <p className="text-white/50">Belum ada anggota di {activeDivision}</p>
                                   </div>
                                 )}
                               </div>
+                            ) : (
+                              <div className="w-full text-center py-10">
+                                <p className="text-white/60">Pilih divisi di atas untuk melihat anggota</p>
+                              </div>
                             )}
                           </>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                        ) : (
+                          <div className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: 'thin' }}>
+                            {getMembersByDirectorate(activeDirectorate).length > 0 ? (
+                              getMembersByDirectorate(activeDirectorate).map((member) => (
+                                <MemberCard key={member.id} member={member} />
+                              ))
+                            ) : (
+                              <div className="w-full text-center py-10">
+                                <p className="text-white/50">Belum ada anggota di direktorat ini</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-              {/* Instruction text when no directorate is selected */}
-              {!activeDirectorate && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-white/40 text-center text-sm mt-4"
-                >
-                  Click on an icon above to view team members
-                </motion.p>
-              )}
-            </div>
+                {!activeDirectorate && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-white/40 text-center text-sm mt-4"
+                  >
+                    Click on an icon above to view team members
+                  </motion.p>
+                )}
+              </>
+            )}
           </div>
-        </section>
+        </div>
+      </section>
 
       {/* Footer */}
       <footer className="bg-white pt-20 pb-10 px-6">
@@ -796,20 +772,86 @@ export default function AboutPage() {
             <div>
               <h4 className="text-black font-black uppercase text-sm tracking-widest mb-5">Support</h4>
               <ul className="space-y-3 text-gray-400 font-bold text-sm">
-                <li className="hover:text-[#B21E35] cursor-pointer transition-colors">Partnership</li>
-                <li className="hover:text-[#B21E35] cursor-pointer transition-colors">Join Us</li>
-                <li className="hover:text-[#B21E35] cursor-pointer transition-colors">Contact</li>
+                <li>
+                  <a
+                    href="https://mail.google.com/mail/u/0/?fs=1&to=sales.radioppid@gmail.com&su=PERMOHONAN+PARTNERSHIP&body=Isi+pesan&tf=cm"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[#B21E35] transition-colors cursor-pointer"
+                  >
+                    Partnership
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://radioppidunia.org/gabung/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[#B21E35] transition-colors cursor-pointer"
+                  >
+                    Join Us
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://mail.google.com/mail/u/0/?fs=1&to=publicrelations.rpd@gmail.com&su=PERMOHONAN+MEDIA+PARTNER&body=Isi+pesan&tf=cm"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[#B21E35] transition-colors cursor-pointer"
+                  >
+                    Contact
+                  </a>
+                </li>
               </ul>
             </div>
 
             <div className="flex flex-col items-start md:items-end">
               <h4 className="text-black font-black uppercase text-sm tracking-widest mb-5">Social</h4>
               <div className="flex gap-3">
-                {['FB', 'IG', 'X', 'YT'].map((social, i) => (
-                  <div key={i} className="w-11 h-11 rounded-full border-2 border-gray-200 flex items-center justify-center hover:border-[#B21E35] hover:bg-[#B21E35] hover:text-white transition-all cursor-pointer group">
-                    <span className="text-xs text-gray-400 font-bold group-hover:text-white">{social}</span>
-                  </div>
-                ))}
+                <a
+                  href="https://www.instagram.com/radioppidunia?igsh=NGpkdmJtNmw4b3Yx"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Instagram"
+                  className="w-11 h-11 rounded-full border-2 border-gray-200 flex items-center justify-center hover:border-[#B21E35] hover:bg-[#B21E35] hover:text-white transition-all cursor-pointer group"
+                >
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-gray-400 group-hover:text-white">
+                    <path d="M12 2.2c3.2 0 3.6 0 4.9.1 1.2.1 1.9.3 2.4.5.6.2 1 .6 1.4 1.1.4.5.6 1.2.7 2 .1 1.1.1 1.5.1 4.1s0 3-.1 4.1c-.1 1.1-.3 1.9-.7 2.4-.4.5-.8.9-1.4 1.1-.5.2-1.2.4-2.4.5-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2-.1-1.9-.3-2.4-.5-.6-.2-1-.6-1.4-1.1-.4-.5-.6-1.2-.7-2-.1-1.1-.1-1.5-.1-4.1s0-3 .1-4.1c.1-1.1.3-1.9.7-2.4.4-.5.8-.9 1.4-1.1.5-.2 1.2-.4 2.4-.5C8.4 2.2 8.8 2.2 12 2.2zm0 2.2c-3 0-3.4 0-4.5.1-1.1.1-1.7.2-2.1.4-.5.2-.9.5-1.3 1-.4.4-.7.8-.9 1.3-.2.4-.3 1-.4 2.1C3 10.6 3 11 3 12s0 1.4.1 2.9c.1 1.1.2 1.7.4 2.1.2.5.5.9 1 1.3.4.4.8.7 1.3.9.4.2 1 .3 2.1.4 1.1.1 1.5.1 4.1.1s3 0 4.1-.1c1.1-.1 1.7-.2 2.1-.4.5-.2.9-.5 1.3-1 .4-.4.7-.8.9-1.3.2-.4.3-1 .4-2.1.1-1.1.1-1.5.1-4.1s0-3-.1-4.1c-.1-1.1-.2-1.7-.4-2.1-.2-.5-.5-.9-1-1.3-.4-.4-.8-.7-1.3-.9-.4-.2-1-.3-2.1-.4C15.4 4.4 15 4.4 12 4.4zm0 3.8c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4zm0 1.8c-1.2 0-2.2 1-2.2 2.2s1 2.2 2.2 2.2 2.2-1 2.2-2.2-1-2.2-2.2-2.2zm4.8-1.6c.5 0 .9.4.9.9s-.4.9-.9.9-.9-.4-.9-.9.4-.9.9-.9z" />
+                  </svg>
+                </a>
+                <a
+                  href="https://x.com/_radioppidunia_?s=21"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="X"
+                  className="w-11 h-11 rounded-full border-2 border-gray-200 flex items-center justify-center hover:border-[#B21E35] hover:bg-[#B21E35] hover:text-white transition-all cursor-pointer group"
+                >
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-gray-400 group-hover:text-white">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                </a>
+                <a
+                  href="https://www.tiktok.com/@radioppidunia?_r=1&_t=ZS-976z1ixMawb"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="TikTok"
+                  className="w-11 h-11 rounded-full border-2 border-gray-200 flex items-center justify-center hover:border-[#B21E35] hover:bg-[#B21E35] hover:text-white transition-all cursor-pointer group"
+                >
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-gray-400 group-hover:text-white">
+                    <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
+                  </svg>
+                </a>
+                <a
+                  href="https://www.youtube.com/@radioppidunia"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="YouTube"
+                  className="w-11 h-11 rounded-full border-2 border-gray-200 flex items-center justify-center hover:border-[#B21E35] hover:bg-[#B21E35] hover:text-white transition-all cursor-pointer group"
+                >
+                  <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-gray-400 group-hover:text-white">
+                    <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
+                  </svg>
+                </a>
               </div>
             </div>
           </div>

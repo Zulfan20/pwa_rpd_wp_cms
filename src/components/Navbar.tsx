@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
+  
   const isActive = (href: string) =>
     href === "/podcast"
       ? pathname?.startsWith("/podcast")
@@ -36,7 +37,7 @@ export function Navbar() {
           <Link href="/" className={isActive("/") ? "text-white" : "hover:text-white transition-colors"}>Home</Link>
           <Link href="/about" className={isActive("/about") ? "text-white" : "hover:text-white transition-colors"}>About Us</Link>
           <Link href="/program" className={isActive("/program") ? "text-[#FFB3C0]" : "hover:text-white transition-colors"}>Program</Link>
-          <Link href="/podcast" className={isActive("/podcast") ? "text-[#FFB3C0]" : "hover:text-white transition-colors"}>HUT RPD</Link>
+          <Link href="/hut-rpd" className={isActive("/hut-rpd") ? "text-[#FFB3C0]" : "hover:text-white transition-colors"}>HUT RPD</Link>
           <Link href="/podcast" className={isActive("/podcast") ? "text-[#FFB3C0]" : "hover:text-white transition-colors"}>Podcast</Link>
           <Link href="/faq" className={isActive("/faq") ? "text-white" : "hover:text-white transition-colors"}>FAQ</Link>
         </nav>
@@ -74,7 +75,7 @@ export function Navbar() {
                       Program
                     </Link>
                     <Link 
-                      href="/podcast" 
+                      href="/hut-rpd" 
                       onClick={() => setIsMenuOpen(false)}
                       className="px-6 py-4 text-white font-bold text-sm uppercase tracking-wider hover:bg-white/10 transition-colors"
                     >
@@ -120,8 +121,8 @@ export function Navbar() {
                 Program
               </Link>
               <Link
-                href="/podcast"
-                className={`inline-flex shrink-0 min-w-[58px] sm:min-w-[84px] items-center justify-center rounded-full border px-2 sm:px-4 py-1.5 text-[8px] sm:text-[11px] font-bold uppercase tracking-[0.16em] text-center backdrop-blur-md transition-colors ${isActive("/podcast") ? "border-[#FFD0DA] bg-[#B91638] text-white shadow-[0_10px_24px_rgba(185,22,56,0.35)]" : "border-white/20 bg-white/10 text-white hover:bg-white/20"}`}
+                href="/hut-rpd"
+                className={`inline-flex shrink-0 min-w-[58px] sm:min-w-[84px] items-center justify-center rounded-full border px-2 sm:px-4 py-1.5 text-[8px] sm:text-[11px] font-bold uppercase tracking-[0.16em] text-center backdrop-blur-md transition-colors ${isActive("/hut-rpd") ? "border-[#FFD0DA] bg-[#B91638] text-white shadow-[0_10px_24px_rgba(185,22,56,0.35)]" : "border-white/20 bg-white/10 text-white hover:bg-white/20"}`}
               >
                 HUT RPD
               </Link>

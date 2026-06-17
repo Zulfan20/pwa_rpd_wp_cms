@@ -18,12 +18,34 @@ export default function ListenNowPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  
+  // State to hold the dynamic VosCast title
+  const [nowPlaying, setNowPlaying] = useState("Memuat info siaran...");
 
   useEffect(() => {
     if (pathname?.startsWith("/admin")) {
       setIsPlayerOpen(false);
     }
   }, [pathname]);
+
+  // Fetch the now playing info every 15 seconds
+  useEffect(() => {
+    const fetchNowPlaying = async () => {
+      try {
+        const res = await fetch("/api/now-playing");
+        const data = await res.json();
+        if (data.displayTitle) {
+          setNowPlaying(data.displayTitle);
+        }
+      } catch (err) {
+        // Fail silently and keep showing the last known song
+      }
+    };
+
+    fetchNowPlaying(); 
+    const interval = setInterval(fetchNowPlaying, 15000); 
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!audioRef.current) {
@@ -162,17 +184,43 @@ export default function ListenNowPlayer() {
 
               <div className={`relative shadow-2xl border border-white/20 ${playerMode === "embed" ? "mx-auto max-w-[360px] rounded-[26px] border-white/15 bg-gradient-to-br from-[#7f1524] via-[#a51c31] to-[#c11f39] p-3 md:p-4" : "bg-[#B21E35] rounded-[28px] p-4 md:px-8 md:py-6"}`}>
                 <div className={`flex flex-col ${playerMode === "embed" ? "gap-3" : "gap-4"}`}>
+                  
                   {playerMode === "stream" ? (
-                    <div className="w-full flex items-center justify-between gap-6">
-                      <div className="flex-1 min-w-0 pr-4">
-                        <p className="text-white/60 text-[10px] uppercase font-black tracking-widest">Playing Now</p>
-                        <p className="text-white font-display text-base font-bold leading-tight mt-1 line-clamp-2">$SK Faiz - Mesir, SK Davina - Turki, SK Wafi - Malaysia & SK Nadine - Turki || SKSD (Saling Kenal Saling Deket): Old But Gold</p>
+                    <div className="w-full flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6">
+                      
+                      {/* === LEFT AREA (Info & Mobile Play Button) === */}
+                      <div className="flex items-center justify-between w-full md:w-auto md:flex-1 min-w-0 pr-0 md:pr-4">
+                        <div className="flex-1 min-w-0 pr-4">
+                          <p className="text-white/60 text-[10px] uppercase font-black tracking-widest">Playing Now</p>
+                          <div className="relative overflow-hidden w-full group">
+                            {/* Changed to truncate for mobile so it fits neatly like Spotify */}
+                            <p className="text-white font-display text-sm md:text-base font-bold leading-tight mt-1 truncate md:line-clamp-2 md:whitespace-normal" title={nowPlaying}>
+                              {nowPlaying}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* MOBILE PLAY BUTTON (Hidden on Desktop) */}
+                        <div className="md:hidden flex-shrink-0 flex items-center gap-3">
+                          <button
+                            onClick={isPlaying ? () => audioRef.current?.pause() : playDirectStream}
+                            className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-lg transition-transform active:scale-95"
+                            aria-label="Play/Pause"
+                          >
+                            {isPlaying ? (
+                              <Pause className="w-5 h-5 text-[#B21E35] fill-current" />
+                            ) : (
+                              <Play className="w-6 h-6 text-[#B21E35] fill-current ml-1" />
+                            )}
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-6 justify-center">
+                      {/* === CENTER AREA (Desktop Full Controls, Hidden on Mobile) === */}
+                      <div className="hidden md:flex items-center gap-6 justify-center">
                         <button
                           onClick={() => seek((audioRef.current?.currentTime || 0) - 10)}
-                          className="w-12 h-12 rounded-full bg-black flex items-center justify-center shadow-md border border-white/10"
+                          className="w-12 h-12 rounded-full bg-black flex items-center justify-center shadow-md border border-white/10 hover:bg-black/80 transition-colors"
                           aria-label="Rewind 10s"
                         >
                           <Rewind className="w-5 h-5 text-white" />
@@ -180,36 +228,38 @@ export default function ListenNowPlayer() {
 
                         <button
                           onClick={isPlaying ? () => audioRef.current?.pause() : playDirectStream}
-                          className="w-20 h-20 rounded-full bg-black flex items-center justify-center shadow-2xl border-2 border-white/10"
+                          className="w-20 h-20 rounded-full bg-black flex items-center justify-center shadow-2xl border-2 border-white/10 hover:bg-black/80 transition-colors"
                           aria-label="Play/Pause"
                         >
                           {isPlaying ? (
-                            <Pause className="w-8 h-8 text-white" />
+                            <Pause className="w-8 h-8 text-white fill-current" />
                           ) : (
-                            <Play className="w-10 h-10 text-white" />
+                            <Play className="w-10 h-10 text-white fill-current ml-1" />
                           )}
                         </button>
 
                         <button
                           onClick={() => seek((audioRef.current?.currentTime || 0) + 10)}
-                          className="w-12 h-12 rounded-full bg-black flex items-center justify-center shadow-md border border-white/10"
+                          className="w-12 h-12 rounded-full bg-black flex items-center justify-center shadow-md border border-white/10 hover:bg-black/80 transition-colors"
                           aria-label="Forward 10s"
                         >
                           <FastForward className="w-5 h-5 text-white" />
                         </button>
                       </div>
 
-                      <div className="flex-1 max-w-sm flex flex-col items-end gap-2 pl-4">
-                        <div className="text-white/90 text-sm font-mono">{formatTime(currentTime)}</div>
+                      {/* === RIGHT / BOTTOM AREA (Progress Bar) === */}
+                      <div className="w-full md:flex-1 md:max-w-sm flex flex-col md:items-end gap-1 md:gap-2 md:pl-4">
+                        <div className="hidden md:block text-white/90 text-sm font-mono">{formatTime(currentTime)}</div>
                         <input
                           type="range"
                           min={0}
                           max={Math.max(1, duration)}
                           value={currentTime}
                           onChange={(e) => seek(Number(e.target.value))}
-                          className="w-full h-1 appearance-none bg-white/30 rounded-full accent-white"
+                          className="w-full h-1.5 md:h-1 appearance-none bg-white/30 rounded-full accent-white cursor-pointer"
                         />
                       </div>
+                      
                     </div>
                   ) : (
                     <div className="flex items-start justify-between gap-3">
@@ -244,7 +294,6 @@ export default function ListenNowPlayer() {
                     </div>
                     ) : null}
 
-                
                 </div>
               </div>
             </div>
