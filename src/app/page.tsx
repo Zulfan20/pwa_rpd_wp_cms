@@ -35,8 +35,6 @@ type MusicItem = {
   spotify_url: string | null;
 };
 
-const WP_API_URL = process.env.NEXT_PUBLIC_WP_API_URL;
-
 // Updated Hook to handle visibility state
 // Updated Hook: Shows by default, hides ONLY if already installed
 function usePWAInstall() {
