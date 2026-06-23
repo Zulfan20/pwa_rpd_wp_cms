@@ -37,41 +37,61 @@ type MusicItem = {
 
 const WP_API_URL = process.env.NEXT_PUBLIC_WP_API_URL;
 
+// Updated Hook to handle visibility state
+// Updated Hook: Shows by default, hides ONLY if already installed
 function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
+    // Check if they are already running the PWA in standalone mode
+    if (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true
+    ) {
+      setIsInstalled(true);
+      return;
+    }
+
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
     };
 
     window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener('appinstalled', () => setIsInstalled(true));
 
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+    };
   }, []);
 
   const promptInstall = async () => {
     if (!deferredPrompt) {
+      // Fallback for iOS or browsers that don't support the native prompt
       const isIOS =
         /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
       if (isIOS) {
-        alert("To install: Tap the Share button and select 'Add to Home Screen'");
+        alert("To install: Tap the Share button (square with an arrow) and select 'Add to Home Screen'");
       } else {
         alert(
-          "To install: Open your browser menu and select 'Install app' or 'Add to Home screen'"
+          "To install: Open your browser menu (three dots) and select 'Install app' or 'Add to Home screen'"
         );
       }
       return;
     }
 
+    // Trigger the native Android/Chrome install prompt
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     console.log("User choice:", outcome);
     setDeferredPrompt(null);
+    if (outcome === 'accepted') {
+      setIsInstalled(true);
+    }
   };
 
-  return { promptInstall };
+  return { promptInstall, isInstalled };
 }
 
 function RadioVibeStrip() {
@@ -134,7 +154,7 @@ function RadioVibeStrip() {
 }
 
 export default function Home() {
-  const { promptInstall } = usePWAInstall();
+  const { promptInstall, isInstalled } = usePWAInstall();
 
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [featuredMember, setFeaturedMember] = useState<Member | null>(null);
@@ -319,14 +339,23 @@ export default function Home() {
                     </h1>
                   )}
 
-                  <div className="mt-6 flex flex-col items-center gap-4 md:mt-8 md:items-end">
-                    <Button
-                      onClick={promptInstall}
-                      size="lg"
-                      className="rounded-full bg-[#B21E35] px-6 py-3 text-xs font-black text-white shadow-[0_14px_40px_rgba(178,30,53,0.45)] transition-transform hover:scale-105 hover:bg-[#8B0000] sm:px-7 sm:py-4 sm:text-sm md:px-10 md:py-6 md:text-lg"
-                    >
-                      Download Now !
-                    </Button>
+                  <div className="mt-6 flex flex-col items-center gap-4 md:mt-8 md:items-end min-h-[60px]">
+                    <AnimatePresence>
+                      {!isInstalled && (
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          onClick={promptInstall}
+                          className="flex items-center gap-2 rounded-full bg-[#B21E35] px-6 py-3 text-xs md:px-10 md:py-5 md:text-lg font-black text-white shadow-[0_4px_12px_rgba(178,30,53,0.4)] transition-transform hover:scale-105 hover:bg-[#8B0000]"
+                        >
+                          <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24" className="w-4 h-4 md:w-6 md:h-6">
+                            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                          </svg>
+                          Install App
+                        </motion.button>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
               </div>
@@ -552,14 +581,14 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={goToPreviousSpecialBanner}
-                              className="inline-flex h-7 w-7 md:h-9 md:w-9 items-center justify-center rounded-full border border-[#B21E35]/15 bg-white text-[#B21E35] shadow transition-transform hover:scale-105 hover:bg-[#B21E35] hover:text-white pointer-events-auto" 
+                              className="inline-flex h-7 w-7 md:h-9 md:w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow transition-transform hover:scale-105 hover:bg-white hover:text-[#B21E35] pointer-events-auto"
                             >
                               <ChevronLeft className="h-3 w-3 md:h-4 md:w-4" />
                             </button>
                             <button
                               type="button"
                               onClick={goToNextSpecialBanner}
-                              className="inline-flex h-7 w-7 md:h-9 md:w-9 items-center justify-center rounded-full border border-[#B21E35]/15 bg-white text-[#B21E35] shadow transition-transform hover:scale-105 hover:bg-[#B21E35] hover:text-white pointer-events-auto"
+                              className="inline-flex h-7 w-7 md:h-9 md:w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow transition-transform hover:scale-105 hover:bg-white hover:text-[#B21E35] pointer-events-auto"
                             >
                               <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
                             </button>

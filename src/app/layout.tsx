@@ -4,7 +4,6 @@ import VisualEditsMessenger from "../visual-edits/VisualEditsMessenger";
 import ErrorReporter from "@/components/ErrorReporter";
 import Script from "next/script";
 import { Navbar } from "@/components/Navbar";
-import InstallButton from "@/components/InstallButton";
 import ListenNowPlayer from "@/components/ListenNowPlayer";
 import GlobalChatBox from "@/components/GlobalChatBox";
 
@@ -67,7 +66,6 @@ export default function RootLayout({
         <ListenNowPlayer />
         <GlobalChatBox />
         {children}
-        <InstallButton />
         <VisualEditsMessenger />
         <script
           dangerouslySetInnerHTML={{
